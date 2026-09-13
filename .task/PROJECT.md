@@ -1,0 +1,87 @@
+# Project Context
+
+<!--
+  Filled in once per project by the human. No agent or skill may overwrite this file.
+
+  Purpose: persistent project-level context that all agents/skills should know about
+  without having to re-explore the codebase each time.
+
+  DO NOT include secrets, tokens, passwords, or sensitive data.
+-->
+
+## Project
+
+<!-- Project name and one-sentence description -->
+
+## Tech Stack
+
+<!-- List main languages, frameworks, and tools -->
+<!-- Example:
+- Language: Swift 5.9
+- UI: SwiftUI
+- Persistence: SwiftData
+- Architecture: MVVM
+- Min target: iOS 17
+-->
+
+## Architecture Overview
+
+<!-- Describe the top-level structure in 3-5 sentences -->
+<!-- Where is the entry point? What are the main layers? -->
+
+## Key Conventions
+
+<!-- Patterns that must be followed -->
+<!-- Example:
+- ViewModels are @Observable, never ObservableObject
+- Navigation uses NavigationStack with a path binding
+- All async work goes through a Service layer
+- Error handling: Result<T, AppError> at service boundary
+-->
+
+## Source Layout
+
+<!-- Main directories and what they contain -->
+<!-- Example:
+- Sources/App/         Entry point
+- Sources/Features/    Screen-level views + VMs
+- Sources/Services/    Business logic
+- Sources/Models/      Data models
+- Sources/UI/          Reusable components
+-->
+
+## Important Files
+
+<!-- Files that context/execute/fix agents frequently need to know about -->
+<!-- Example:
+- Sources/App/AppModel.swift       Root state
+- Sources/Services/APIClient.swift Networking layer
+-->
+
+## Known Constraints
+
+<!-- Hard limits that plans must respect -->
+<!-- Example:
+- Must not break iOS 16 backward compat
+- No third-party networking libraries
+-->
+
+## Verify Command
+
+<!-- The exact shell command that proves the build/typecheck is clean. -->
+<!-- Example:
+- npm run typecheck
+- swift build
+- xcodebuild -scheme App -destination 'generic/platform=iOS' build
+-->
+<!-- execute-agent and fix-agent MUST run this before reporting done. -->
+
+## Git
+
+<!-- Base branch: the branch task branches are cut from and merged back into. -->
+<!-- Task branch prefix: prefix used when creating a task branch, e.g. task/042-add-dark-mode. -->
+<!-- Both "Base branch:" and "Task branch prefix:" are read by tooling — the -->
+<!-- value must follow the colon on the same line. -->
+
+Base branch: main
+Task branch prefix: task/
