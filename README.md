@@ -29,8 +29,44 @@ Subagents **cannot see** the main conversation. Anything you paste
 ## Installing into a project
 
 This is a template repo — copy it into your target project before use.
+Two ways to do that:
 
-### a) What to copy
+- **Option A — automated, untracked** (recommended when the target
+  project's team hasn't agreed to use this workflow, or you just don't
+  want the workflow's files showing up in `git status`/history).
+- **Option B — manual, tracked** (the workflow's files, including
+  `.task/`, are committed into the target repo like any other project
+  file — see the Directory Structure section at the end of this README).
+
+### Option A — automated, untracked
+
+From this template repo:
+
+```bash
+bash bin/install-untracked.sh /path/to/target-project
+```
+
+Requires the target to already be a git repository. The script:
+- copies `.claude/agents/`, `.claude/instructions/`, `.claude/skills/{overview,save}/`,
+  `.task/` (skipped if the target already has one — never overwrites existing task history),
+  and `bin/{copy,diff}-for-web.sh` into the target
+- merges the Agent Routing table + hard rules from this repo's `CLAUDE.md`
+  into `<target>/CLAUDE.local.md` instead of touching the target's own `CLAUDE.md`
+- appends a marker-delimited block to `<target>/.gitignore` covering every
+  file it just copied, so none of it is ever staged
+
+It aborts before copying anything if `.claude/agents/{context,execute,fix}-agent.md`
+or `.claude/skills/{overview,save}/` already exist in the target with
+different content (see Option B, part c below, for how to resolve that by
+hand). Safe to re-run — an install identical to what's already there is a
+no-op, not an error.
+
+After it finishes, skip straight to filling in `.task/PROJECT.md`
+(see "Initial setup" below) — parts a-e below don't apply to this path.
+
+### Option B — manual, tracked
+
+#### a) What to copy
 
 From this template repo into the root of the target project:
 
@@ -55,7 +91,7 @@ cp -R .task bin CLAUDE.md <target>/
 other `.task/*.md` files arrive as empty templates — that's expected; only
 `.task/PROJECT.md` needs to be filled in by hand.
 
-### b) Merging when the target project already has a CLAUDE.md
+#### b) Merging when the target project already has a CLAUDE.md
 
 Don't overwrite it. Merge the template's CLAUDE.md content into the
 project's existing CLAUDE.md, keeping in full:
@@ -68,7 +104,7 @@ style import — PROJECT.md is read explicitly by each
 `.claude/instructions/*.md` file, so it loads exactly once per agent.
 Don't add that kind of import when merging.
 
-### c) Merging when the target project already has `.claude/agents/` or `.claude/skills/`
+#### c) Merging when the target project already has `.claude/agents/` or `.claude/skills/`
 
 Names must not collide: `context-agent`, `execute-agent`, `fix-agent`,
 `overview`, `save`. If any name already exists in the target project,
@@ -76,12 +112,12 @@ rename one side and update every reference (the `Agent Routing` table in
 CLAUDE.md, and the pointer to `.claude/instructions/*.md` in the
 corresponding agent file).
 
-### d) Commit `.task/` into the target project
+#### d) Commit `.task/` into the target project
 
 `.task/` should be committed into the target project's repo — see the
 Directory Structure section at the end of this README for details.
 
-### e) Verify the install
+#### e) Verify the install
 
 From the root of the target project:
 - `bash bin/copy-for-web.sh --help` must print usage.
@@ -325,6 +361,7 @@ IDs no longer collide, since `overview` scans existing task branches too
 CLAUDE.md              Agent routing table + hard rules for main context
 
 bin/
+  install-untracked.sh Installs this workflow into another project, gitignored (Option A)
   copy-for-web.sh       Copies PROJECT.md + overview.md + context.md to the clipboard (Step 2)
   diff-for-web.sh       Copies the git diff to the clipboard (Step 5/6)
 
@@ -354,5 +391,6 @@ bin/
   done/                 Archive of completed tasks
 ```
 
-`.task/` **should be committed** into the project's repo — it's the task's record.
+`.task/` **should be committed** into the project's repo if installed via Option B — it's
+the task's record. If installed via Option A, `.task/` is gitignored on purpose instead.
 `bin/diff-for-web.sh` automatically excludes `.task/` from the diff so the AI web only sees real code.
