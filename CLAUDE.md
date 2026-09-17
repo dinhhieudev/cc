@@ -13,6 +13,8 @@ A task workflow that pairs Claude Code (codebase exploration, implementation, fi
 | pastes a fix list ("fix this list: ...") | **Append the pasted list to `.task/review.md` as `## Fix Notes — Round N` FIRST**, then dispatch **fix-agent** |
 | `save task` | Run `save` skill in main context |
 
+Vietnamese phrasings of these triggers route identically to their English rows. Examples: `plan đã lưu vào .task/plan.md, chạy execute` → execute-agent row; `triển khai plan này: ...` → paste-plan row; `fix notes round N đã lưu, chạy fix` → fix-agent row; `sửa theo danh sách này: ...` → paste-fix-list row; `lưu task` → save row. `skill overview + context: ...` is unchanged (skill name). The appended heading is always `## Fix Notes — Round N` in English, even when the human writes Vietnamese.
+
 N for `## Fix Notes — Round N` = (number of existing `## Fix Notes — Round`
 headings in `.task/review.md`) + 1. If the computed N would be greater than
 3, do not append — stop and apply hard rule 4 instead (loop is not

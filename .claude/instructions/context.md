@@ -35,6 +35,8 @@ Then inspect the actual codebase.
 2. Task overview (to know what is relevant)
 3. `.task/PROJECT.md` (already-documented architecture/conventions — confirm, don't re-derive)
 
+**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Fix Notes — Round N`, `## Fixes Applied — Round N`, `## Round N`) — tooling and routing grep these exact strings; `Base branch:` / `Task branch prefix:` / `Language:` lines; `.task/index.md` table field names, status values (`in-progress`, `done`) and `—` placeholders; template labels such as `Result:` / `Issues found:`; file paths; git branch names and slugs; commit messages and tag names; code, identifiers, and code comments.
+
 ## Output
 
 Create or update:

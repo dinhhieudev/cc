@@ -202,6 +202,8 @@ Issues found:
 Never archive, reset, or otherwise modify `.task/PROJECT.md` — it is
 project-level and persists across tasks.
 
+**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Fix Notes — Round N`, `## Fixes Applied — Round N`, `## Round N`) — tooling and routing grep these exact strings; `Base branch:` / `Task branch prefix:` / `Language:` lines; `.task/index.md` table field names, status values (`in-progress`, `done`) and `—` placeholders; template labels such as `Result:` / `Issues found:`; file paths; git branch names and slugs; commit messages and tag names; code, identifiers, and code comments. The blank templates written in this step stay in English regardless of setting — they are structural placeholders, not prose.
+
 ### 6. Update index.md and commit
 
 Read the branch name from the Active Task table's Branch field in

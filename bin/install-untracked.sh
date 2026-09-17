@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: install-untracked.sh <target-project-path>
+Usage: install-untracked.sh [--lang en|vi] <target-project-path>
 
 Installs the claude++ workflow (agents, instructions, skills, .task/,
 bin/ helper scripts) into <target-project-path>, and marks every
@@ -25,7 +25,10 @@ has .claude/agents/ or .claude/skills/"). Re-running against a target
 that already has an identical install is safe (idempotent).
 
 Options:
-  -h, --help    Show this help and exit
+  --lang <en|vi>  Set Language: in the installed .task/PROJECT.md; this
+                   controls the language agents write .task prose and
+                   reports in. Also accepts --lang=<en|vi>. Default: en.
+  -h, --help      Show this help and exit
 EOF
 }
 
@@ -34,18 +37,59 @@ if [[ $# -eq 0 ]]; then
   exit 1
 fi
 
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-  usage
-  exit 0
+LANG_ARG=""
+LANG_SET=0
+POSITIONAL=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --lang)
+      if [[ $# -lt 2 ]]; then
+        echo "Error: --lang requires a value (en or vi)." >&2
+        exit 1
+      fi
+      LANG_ARG="$2"
+      LANG_SET=1
+      shift 2
+      ;;
+    --lang=*)
+      LANG_ARG="${1#--lang=}"
+      LANG_SET=1
+      shift
+      ;;
+    -*)
+      echo "Error: unknown option '$1'." >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      POSITIONAL+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ "$LANG_SET" -eq 1 && "$LANG_ARG" != "en" && "$LANG_ARG" != "vi" ]]; then
+  echo "Error: --lang must be 'en' or 'vi' (got '$LANG_ARG')." >&2
+  exit 1
 fi
 
-if [[ $# -gt 1 ]]; then
-  echo "Error: install-untracked.sh takes exactly one argument (the target project path)." >&2
+if [[ ${#POSITIONAL[@]} -eq 0 ]]; then
+  usage
+  exit 1
+fi
+
+if [[ ${#POSITIONAL[@]} -gt 1 ]]; then
+  echo "Error: install-untracked.sh takes exactly one positional argument (the target project path)." >&2
   usage >&2
   exit 1
 fi
 
-TARGET_ARG="$1"
+TARGET_ARG="${POSITIONAL[0]}"
 
 if [[ ! -e "$TARGET_ARG" ]]; then
   echo "Error: target path '$TARGET_ARG' does not exist." >&2
@@ -129,10 +173,23 @@ done
 TASK_FRESH=0
 if [[ -e "$TARGET/.task" ]]; then
   SKIPPED+=(".task/ (already exists — left untouched)")
+  if [[ "$LANG_SET" -eq 1 ]]; then
+    SKIPPED+=(".task/PROJECT.md language (existing .task/ left untouched — set \"Language: $LANG_ARG\" by hand)")
+  fi
 else
   cp -R "$REPO_ROOT/.task" "$TARGET/.task"
   COPIED+=(".task/")
   TASK_FRESH=1
+fi
+
+if [[ "$TASK_FRESH" -eq 1 && "$LANG_SET" -eq 1 ]]; then
+  PROJECT_MD="$TARGET/.task/PROJECT.md"
+  if grep -q '^Language:' "$PROJECT_MD"; then
+    awk -v lang="$LANG_ARG" '/^Language:/ { print "Language: " lang; next } { print }' "$PROJECT_MD" > "$PROJECT_MD.tmp" && mv "$PROJECT_MD.tmp" "$PROJECT_MD"
+  else
+    printf '\n## Language\n\nLanguage: %s\n' "$LANG_ARG" >> "$PROJECT_MD"
+  fi
+  COPIED+=(".task/PROJECT.md language set to $LANG_ARG")
 fi
 
 mkdir -p "$TARGET/bin"

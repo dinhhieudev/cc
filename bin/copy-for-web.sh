@@ -73,15 +73,17 @@ has_real_content() {
 }
 
 # .task/PROJECT.md ships with its ## Git section pre-filled (Base branch /
-# Task branch prefix), so has_real_content alone would never flag a
-# PROJECT.md whose substantive sections are all still blank. Strip those
-# two Git lines too before checking for real content.
+# Task branch prefix) and its ## Language section pre-filled (Language: en),
+# so has_real_content alone would never flag a PROJECT.md whose substantive
+# sections are all still blank. Strip those pre-filled lines too before
+# checking for real content.
 project_has_substance() {
   strip_comments "$1" | awk '
     /^[[:space:]]*#/ { next }
     /^[[:space:]]*$/ { next }
     /^Base branch:/ { next }
     /^Task branch prefix:/ { next }
+    /^Language:/ { next }
     { found = 1 }
     END { exit(found ? 0 : 1) }
   '
@@ -93,7 +95,7 @@ PROJECT_SECTION=""
 if [[ ! -f .task/PROJECT.md ]]; then
   echo "Warning: .task/PROJECT.md is missing — the AI web planner will not receive project architecture/conventions." >&2
 elif ! project_has_substance .task/PROJECT.md; then
-  echo "Warning: .task/PROJECT.md has no project context filled in (only the Git section) — the AI web planner will not receive project architecture/conventions." >&2
+  echo "Warning: .task/PROJECT.md has no project context filled in (only the Git/Language sections) — the AI web planner will not receive project architecture/conventions." >&2
 else
   PROJECT_SECTION=$(printf '%s\n%s' "--- PROJECT ---" "$(cat .task/PROJECT.md)")
 fi

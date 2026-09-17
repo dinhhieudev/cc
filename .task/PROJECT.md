@@ -85,3 +85,11 @@
 
 Base branch: main
 Task branch prefix: task/
+
+## Language
+
+<!-- Output language for prose agents write into .task/*.md and their final reports. -->
+<!-- Allowed values: en (default), vi. Read by agents and bin/ scripts — value must follow the colon on the same line. -->
+<!-- Headings, file names, branch names, commit messages, and code always stay English. -->
+
+Language: en
