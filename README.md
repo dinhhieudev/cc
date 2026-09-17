@@ -1,5 +1,7 @@
 # Claude++ Workflow
 
+English | [Tiếng Việt](README.vi.md)
+
 A feature-development workflow that pairs **Claude Code** with an **AI web** conversation (ChatGPT / Gemini).
 
 Claude Code handles the codebase (exploration, implementation, fixes, git). The AI web handles planning and review.
@@ -44,6 +46,12 @@ From this template repo:
 
 ```bash
 bash bin/install-untracked.sh /path/to/target-project
+```
+
+Pass `--lang en|vi` to set `Language:` in the installed `.task/PROJECT.md`
+(default `en`); ignored with a note if the target already has `.task/`:
+```bash
+bash bin/install-untracked.sh --lang vi /path/to/target-project
 ```
 
 Requires the target to already be a git repository. The script:
@@ -138,6 +146,10 @@ Fill in `.task/PROJECT.md` — project-level context that no agent or skill over
   fix-agent **must** run this command before reporting done.
 - `## Git` — `Base branch` (default `main`) and `Task branch prefix`
   (default `task/`).
+- `## Language` — `Language: en` (default) or `vi`. Controls the prose
+  language agents write in `.task/*.md` files and their final reports.
+  Headings that tooling greps (`## Fix Notes — Round N`, etc.), file paths,
+  branch names, commit messages, and code always stay English regardless.
 
 `.task/context.md` is **auto-generated per task** (written by context-agent
 each time) — **never hand-edit this file**, any changes will be overwritten
@@ -358,6 +370,8 @@ IDs no longer collide, since `overview` scans existing task branches too
 ## Directory structure
 
 ```
+README.md              This file (English)
+README.vi.md           Vietnamese translation of this file
 CLAUDE.md              Agent routing table + hard rules for main context
 
 bin/
