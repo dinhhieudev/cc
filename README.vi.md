@@ -68,6 +68,22 @@ hoặc `.claude/skills/{overview,save}/` đã tồn tại trong target với n�
 khác. (xem Option B, phần c bên dưới, để biết cách xử lý thủ công). An toàn
 khi chạy lại — một lần cài giống hệt cái đã có là no-op, không phải lỗi.
 
+Để cập nhật một lần cài untracked trước đó lên phiên bản template hiện tại,
+truyền `--upgrade`:
+```bash
+bash bin/install-untracked.sh --upgrade /path/to/target-project
+```
+Lệnh này yêu cầu `CLAUDE.local.md` của target đã có sẵn marker claude++
+workflow (bằng chứng của một lần cài trước đó bởi script này) — nếu không nó
+sẽ từ chối và yêu cầu chạy lại không kèm `--upgrade`. Với `--upgrade`,
+collision check ở trên bị bỏ qua, và các file agent/instruction/skill của
+workflow cùng `bin/{copy,diff}-for-web.sh` sẽ bị ghi đè bằng phiên bản hiện
+tại của template (mọi chỉnh sửa thủ công lên các file đó sẽ mất), đồng thời
+block marker trong `CLAUDE.local.md` được làm mới. Lệnh này không bao giờ
+đụng vào `.task/`, ngoại trừ việc thêm phần `## Language` còn thiếu vào
+`.task/PROJECT.md` nếu chưa có, hoặc cập nhật dòng `Language:` khi có
+truyền `--lang`.
+
 Sau khi hoàn tất, chuyển thẳng sang điền `.task/PROJECT.md`
 (xem "Thiết lập ban đầu" bên dưới) — các phần a-e bên dưới không áp dụng cho path này.
 
@@ -376,6 +392,8 @@ CLAUDE.md              Bảng agent routing + hard rules cho main context
 
 bin/
   install-untracked.sh Cài workflow này vào project khác, gitignored (Option A)
+  lib/
+    install-untracked-lib.sh Các hàm helper cho install-untracked.sh
   copy-for-web.sh       Copy PROJECT.md + overview.md + context.md vào clipboard (Bước 2)
   diff-for-web.sh       Copy git diff vào clipboard (Bước 5/6)
 

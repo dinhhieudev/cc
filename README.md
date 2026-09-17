@@ -69,6 +69,21 @@ different content (see Option B, part c below, for how to resolve that by
 hand). Safe to re-run — an install identical to what's already there is a
 no-op, not an error.
 
+To update a previous untracked install to this template's current version,
+pass `--upgrade`:
+```bash
+bash bin/install-untracked.sh --upgrade /path/to/target-project
+```
+This requires the target's `CLAUDE.local.md` to already carry the claude++
+workflow marker (proof of a previous install by this script) — otherwise it
+refuses and asks you to run without `--upgrade` instead. With `--upgrade`,
+the collision check above is skipped and the workflow's agent, instruction,
+and skill files plus `bin/{copy,diff}-for-web.sh` are overwritten with the
+template's current versions (any local edits to those files are lost), and
+the `CLAUDE.local.md` marker block is refreshed. It never touches `.task/`,
+except adding a missing `## Language` section to `.task/PROJECT.md` if one
+isn't there yet, or updating its `Language:` line when `--lang` is given.
+
 After it finishes, skip straight to filling in `.task/PROJECT.md`
 (see "Initial setup" below) — parts a-e below don't apply to this path.
 
@@ -376,6 +391,8 @@ CLAUDE.md              Agent routing table + hard rules for main context
 
 bin/
   install-untracked.sh Installs this workflow into another project, gitignored (Option A)
+  lib/
+    install-untracked-lib.sh Helper functions for install-untracked.sh
   copy-for-web.sh       Copies PROJECT.md + overview.md + context.md to the clipboard (Step 2)
   diff-for-web.sh       Copies the git diff to the clipboard (Step 5/6)
 
