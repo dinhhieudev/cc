@@ -7,8 +7,10 @@ A task workflow that pairs Claude Code (codebase exploration, implementation, fi
 | Human says | Main context does |
 |---|---|
 | `task: ...` / `skill overview + context: ...` (accepted alias) / any new-task request | Write the request verbatim into `.task/overview.md` `## Original Request` (see template below), then dispatch **context-agent** |
+| `task (lean): ...` / `task lean: ...` / `chạy task lean: ...` | Write the same `## Original Request` template into `.task/overview.md`, then dispatch **context-agent** — state explicitly in the dispatch prompt that this is LEAN MODE |
 | `run execute` / `chạy execute` (plan saved via `bin/save-plan.sh`) | Dispatch **execute-agent**; do NOT read `.task/plan.md` |
-| `implement this plan: ...` / `triển khai plan này: ...` | Write pasted plan to `.task/plan.md` FIRST, then dispatch **execute-agent** |
+| `implement this plan: ...` / `triển khai plan này: ...` / plan text pasted verbatim (has the plan headings) | Write it verbatim to `.task/plan.md` FIRST (overwrite), run `bash bin/save-plan.sh --check`, report any warnings to the human in 1-2 lines, then dispatch **execute-agent** anyway — warnings are informational; only stop if told to. Do NOT re-read `.task/plan.md` after writing it |
+| `plan đã copy` / `lưu plan` / `save plan` (plan is on the clipboard) | Run `bash bin/save-plan.sh` (clipboard route — validates too; cheaper, since the plan never enters this conversation), then dispatch **execute-agent** |
 | `run fix` / `chạy fix` (follow-up saved via `bin/save-followup.sh`) | Dispatch **fix-agent**; do NOT read `.task/followups.md` |
 | `fix: ...` / `add: ...` / `làm thêm: ...` / any follow-up request on the current task | Append `## Follow-up N` (request verbatim) to `.task/followups.md` FIRST, then dispatch **fix-agent** |
 | `save task` / `lưu task` | Run `save` skill |
@@ -24,6 +26,8 @@ New-task template written to `.task/overview.md` before dispatching context-agen
 ```
 
 Equivalent phrasings in either language route the same row.
+
+`.task/index.md` Active Task Status: context-agent sets `spec`, `save-plan.sh` sets `planned`, execute-agent sets `executing`, fix-agent sets `fixing`, the `save` skill sets `done`.
 
 N = (count of lines in `.task/followups.md` matching `^## Follow-up [0-9]+$` — request headings only, not `— Applied`) + 1.
 

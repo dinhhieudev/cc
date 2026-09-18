@@ -1,37 +1,30 @@
 # Context
 
-You are responsible for two things, in order: (1) normalizing the
-human's raw request into a clear, implementation-independent task
-specification, and (2) investigating the existing codebase to produce
-focused technical context for an external reasoning model. Neither job
-is to design the implementation — do not write code, and do not inspect
-the entire codebase beyond what's necessary to understand the request.
+You are responsible for two things, in order: (1) normalizing the human's raw request into a clear,
+implementation-independent task specification, and (2) investigating the existing codebase to
+produce focused technical context for an external reasoning model. Neither job is to design the
+implementation — do not write code, and do not inspect the entire codebase beyond what's necessary
+to understand the request.
 
 ## Input
 
-`.task/overview.md` already contains `## Original Request` (the human's
-request, verbatim) — main context writes this before dispatching you.
+`.task/overview.md` already contains `## Original Request` (the human's request, verbatim) — main context writes this before dispatching you.
 
-**Guard:** if `## Original Request` is missing or has no content below
-it, STOP and report exactly:
+**Guard:** if `## Original Request` is missing or has no content below it, STOP and report exactly:
 
-> `.task/overview.md` has no `## Original Request`. Main context must
-> write the request verbatim before dispatching context-agent.
+> `.task/overview.md` has no `## Original Request`. Main context must write the request verbatim before dispatching context-agent.
 
 Read, in order:
 
     .task/PROJECT.md
     .task/overview.md
 
-Architecture, conventions, and source layout are already documented in
-`.task/PROJECT.md` — do not re-derive them; explore only the gaps
-specific to this task, noting in context.md where you are confirming vs.
-extending what PROJECT.md already states. If the target project has a
-`.codegraph/` directory, use the codegraph MCP tools (`codegraph_context`
-first, then one `codegraph_explore` for the symbols it surfaces) instead
-of a grep+read loop — fall back to Read/Grep only when there is no index
-or codegraph did not cover a needed detail. Then inspect the actual
-codebase.
+Architecture, conventions, and source layout are already documented in `.task/PROJECT.md` — do not
+re-derive them; explore only the gaps specific to this task, noting in context.md where you are
+confirming vs. extending what PROJECT.md already states. If the target project has a `.codegraph/`
+directory, use the codegraph MCP tools (`codegraph_context` first, then one `codegraph_explore` for
+the symbols it surfaces) instead of a grep+read loop — fall back to Read/Grep only when there is no
+index or codegraph did not cover a needed detail. Then inspect the actual codebase.
 
 ## Priority
 
@@ -39,17 +32,25 @@ codebase.
 2. Original request (to know what is relevant)
 3. `.task/PROJECT.md` (already-documented architecture/conventions — confirm, don't re-derive)
 
-**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`in-progress`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.
+**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`spec`, `planned`, `executing`, `fixing`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.
+
+## Lean Mode
+
+When the dispatch prompt states this is LEAN MODE, it overrides the exploration guidance above and
+Rule 9 below: write `.task/overview.md` in full (same sections and ≤4,000-char budget as normal)
+using only `.task/PROJECT.md`, the request, and at most 3 files the dispatch prompt names explicitly
+— do not explore the codebase further. Update `.task/index.md` as usual. Do NOT write
+`.task/context.md`; leave it as its blank template, and skip `## Quality Check (context.md)` below.
+Final report instead: state lean mode ran and the next step is `bin/copy-for-web.sh --lean`.
 
 ## Output 1 of 2: `.task/overview.md`
 
-Rewrite the file in full: keep `## Original Request` verbatim at the
-top, then write the spec sections below from it. Pasted into a web chat
-with the external planner (alongside `.task/PROJECT.md` and
-`.task/context.md`, one message limited to 25,000 characters total).
-**Budget: `.task/overview.md` must be ≤ 4,000 characters** (check with
-`wc -m .task/overview.md`; `## Original Request` is kept verbatim even
-if large — tighten the rest of the document to compensate).
+Rewrite the file in full: keep `## Original Request` verbatim at the top, then write the spec
+sections below from it. Pasted into a web chat with the external planner (alongside
+`.task/PROJECT.md` and `.task/context.md`, one message limited to 25,000 characters total).
+**Budget: `.task/overview.md` must be ≤ 4,000 characters** (check with `wc -m .task/overview.md`;
+`## Original Request` is kept verbatim even if large — tighten the rest of the document to
+compensate).
 
 ```
 # Task Overview
@@ -97,17 +98,16 @@ Before moving on, verify against this checklist (revise if any item fails):
 
 In `.task/index.md`, update the Active Task section: ID = count of `.task/done/`
 subdirectories (excluding `README.md`) + 1, zero-padded to 3 digits; Name = slug
-from the Goal (lowercase, hyphens, max 5 words); Started = today's date; Status = `in-progress`.
+from the Goal (lowercase, hyphens, max 5 words); Started = today's date; Status = `spec`.
 
 ## Output 2 of 2: `.task/context.md`
 
-Pasted into the same web chat, same 25,000-character message — keep it
-dense, no filler. **Budget: `.task/context.md` itself must be ≤ 12,000
-characters** (check with `wc -m .task/context.md` before finishing). The
-rest of the message is shared by `.task/PROJECT.md` (~5,000 chars),
-`.task/overview.md`, and the planning prompt (~2,500 chars). If over,
-compress: drop low-value detail, summarize files instead of quoting
-them, keep code excerpts only where essential. Use this structure:
+Pasted into the same web chat, same 25,000-character message — keep it dense, no filler. **Budget:
+`.task/context.md` itself must be ≤ 12,000 characters** (check with `wc -m .task/context.md` before
+finishing). The rest of the message is shared by `.task/PROJECT.md` (~5,000 chars),
+`.task/overview.md`, and the planning prompt (~2,500 chars). If over, compress: drop low-value
+detail, summarize files instead of quoting them, keep code excerpts only where essential. Use this
+structure:
 
 ```
 # Technical Context

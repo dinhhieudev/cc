@@ -38,8 +38,8 @@ dựa vào `.gitignore` để giữ mọi thứ nó cài đặt ngoài git statu
 - `.claude/skills/save/`
 - `.task/` — chỉ khi dự án đích chưa có `.task/` (cài mới hoàn toàn; nếu đã
   có `.task/` thì giữ nguyên không đụng vào)
-- `bin/{copy-for-web.sh,plan-prompt.md,result-prompt.md,save-plan.sh,save-followup.sh}`
-  và `bin/lib/{copy-for-web-lib.sh,save-plan-lib.sh}`
+- `bin/{copy-for-web.sh,plan-prompt.md,result-prompt.md,save-plan.sh,save-followup.sh,attach.sh,lean-note.md}`
+  và `bin/lib/{copy-for-web-lib.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
 
 Nó cũng gộp `CLAUDE.md` của repo này (bảng Agent Routing + các hard rules)
 vào `CLAUDE.local.md` của dự án đích, giữa các marker comment, và thêm một
@@ -105,7 +105,8 @@ dẫn sử dụng, và `.task/PROJECT.md` phải tồn tại, sẵn sàng để 
 shell chính xác (`npm run typecheck`, `swift build`, ...) mà execute-agent
 và fix-agent phải chạy trước khi báo cáo hoàn thành. `## Language` mặc định
 sẵn `Language: en`; đổi thành `vi` để xuất tiếng Việt. File này không bao
-giờ bị agent hay skill nào sửa — bạn tự quản lý nó.
+giờ bị agent nào sửa; chỉ skill `save` mới được nối thêm các gợi ý bạn đã
+duyệt ở Bước 5 — ngoài ra bạn tự quản lý nó.
 
 Khi `Language: vi`, `bin/copy-for-web.sh` nối thêm một dòng vào prompt web
 (cả payload lập kế hoạch lẫn payload review kết quả) yêu cầu AI web trả lời
@@ -133,7 +134,18 @@ codebase (qua CodeGraph nếu dự án đích có `.codegraph/`), rồi viết:
   `## Relevant Code Snippets`, `## Unknowns`, `## Files to Attach` — tối đa
   10 đường dẫn), giới hạn ≤ 12.000 ký tự
 - `.task/index.md` — mục Active Task (ID, Name, Started, Status =
-  `in-progress`)
+  `spec`). Status sau đó tiến triển: `planned` khi `bin/save-plan.sh` lưu
+  plan, `executing` khi execute-agent bắt đầu, `fixing` khi một vòng
+  follow-up bắt đầu, `done` khi task được lưu.
+
+**Đường dẫn lean** — cho dự án nhỏ, hoặc khi bạn đã biết rõ khu vực cần sửa: gõ
+`task (lean): <yêu cầu>` (bí danh: `task lean: <yêu cầu>`) thay vì `task:`. context-agent
+chỉ viết `.task/overview.md` (spec đầy đủ như bình thường, cùng giới hạn ký tự) từ
+`.task/PROJECT.md`, yêu cầu của bạn, và tối đa 3 file bạn nêu rõ tên — nó không khám phá
+codebase ngoài phạm vi đó, và để nguyên `.task/context.md` ở dạng template rỗng. Cách này
+tiết kiệm token Claude, đổi lại một vòng qua lại thêm với web planner; với codebase lớn và
+chưa quen, đường bình thường với `context.md` cho planner ngữ cảnh tốt hơn, nên ưu tiên
+dùng đường đó. Tiếp tục ở Bước 2 với `bin/copy-for-web.sh --lean` thay vì dạng thường.
 
 ## Bước 2 — AI web: lập kế hoạch
 
@@ -160,24 +172,47 @@ với sáu mục cố định: `## Summary`, `## Decisions to Review`,
 `## Out of Scope`, `## Open Questions`. Bạn chỉ cần review ba mục đầu —
 Summary, Decisions to Review, AC Coverage.
 
+**Đường dẫn lean** — sau `bin/copy-for-web.sh --lean` (xem Bước 1), payload thay
+`.task/context.md` bằng một FILE TREE của dự án (`git ls-files`, hoặc `find` đã lọc bớt
+nếu không phải git repo) và thêm `bin/lean-note.md` vào prompt, yêu cầu web planner trả
+lời trước danh sách file nó cần (tối đa 15 đường dẫn từ cây file) trước khi ra kế hoạch.
+Chạy `bin/attach.sh <path> [<path>...]` để copy các file đó vào `.task/web/` (làm phẳng
+tên, in ra bảng ánh xạ và tổng số ký tự; cũng nhận `-` để đọc đường dẫn từ stdin), đính
+kèm chúng trong cùng web chat, rồi xin kế hoạch — sau đó tiếp tục ở Bước 3 như bình
+thường. FILE TREE quá lớn sẽ giảm dần: file gây nhiễu (lockfile, ảnh, `*.min.*`,
+`.task/**`) bị loại trước, rồi gộp thành số đếm theo thư mục `dir/ (N files)`, rồi đính
+kèm toàn bộ cây dưới dạng `.task/web/file-tree.txt`; `--split` ép cả FILE TREE lẫn
+PROJECT thành file đính kèm ngay.
+
 ## Bước 3 — Claude Code: execute
 
-Copy kế hoạch từ web chat, rồi chạy:
+Mặc định: copy kế hoạch từ web chat rồi dán thẳng vào cuộc hội thoại với
+`triển khai plan này: <plan>` (hoặc `implement this plan: ...`, hoặc chỉ dán
+nguyên văn kế hoạch). Claude ghi nó nguyên văn vào `.task/plan.md` (ghi đè
+bất cứ gì đang có), chạy `bin/save-plan.sh --check` để kiểm tra, báo lại
+cảnh báo (nếu có) trong một hai dòng, rồi vẫn dispatch **execute-agent** —
+cảnh báo chỉ mang tính thông tin, không chặn.
+
+Đường dẫn rẻ hơn, nếu bạn muốn kế hoạch không bao giờ vào cuộc hội thoại
+Claude: copy kế hoạch từ web chat, rồi chạy:
 
 ```
-bin/save-plan.sh [--force]
+bin/save-plan.sh [--force] | --stdin [--force] | --check
 ```
 
-Nó ghi nội dung clipboard vào `.task/plan.md`, và cảnh báo (không chặn) nếu
-thiếu heading bắt buộc, còn `## Open Questions` chưa giải quyết, hoặc
-`## Steps` tham chiếu đường dẫn file không tồn tại mà không được đánh dấu là
-mới. Nó từ chối ghi đè `plan.md` đã có nội dung trừ khi có `--force`.
+Không có cờ, nó đọc clipboard và ghi vào `.task/plan.md`, chạy cùng bộ kiểm
+tra, và cảnh báo (không chặn) nếu thiếu heading bắt buộc, còn
+`## Open Questions` chưa giải quyết, mục `## Decisions to Review` quá sơ
+sài (chỉ toàn gạch đầu dòng ngắn, không thấy lý lẽ), hoặc `## Steps` tham
+chiếu đường dẫn file không tồn tại mà không được đánh dấu là mới. Nó từ chối ghi đè
+`plan.md` đã có nội dung trừ khi có `--force`. `--stdin` đọc kế hoạch từ
+stdin thay vì clipboard (vd: `cat plan.txt | bin/save-plan.sh --stdin`) và
+còn lại giống hệt đường clipboard. `--check` kiểm tra `.task/plan.md` hiện
+có tại chỗ — không đọc clipboard, không ghi gì — chỉ báo lỗi nếu file thiếu
+hoặc vẫn còn là placeholder.
 
-Sau đó bảo Claude `chạy execute` (hoặc `run execute`) — main context
-dispatch thẳng **execute-agent** mà không tự đọc `plan.md`. Đường dẫn dự
-phòng: dán thẳng kế hoạch vào cuộc hội thoại với `triển khai plan này:
-<plan>` (hoặc `implement this plan: ...`), main context sẽ ghi nó vào
-`.task/plan.md` trước.
+Sau đó bảo Claude `chạy execute` (hoặc `run execute`) — main context dispatch
+thẳng **execute-agent** mà không tự đọc `plan.md`.
 
 execute-agent đọc `PROJECT.md`, `overview.md`, `plan.md`, đối chiếu
 `## AC Coverage` với từng Acceptance Criterion, và dừng lại để báo cáo thay
@@ -185,8 +220,8 @@ vì đoán mò khi gặp một mục `## Open Questions` gây tắc nghẽn, xun
 trúc, hoặc bất cứ gì nhạy cảm về bảo mật. Nó triển khai `## Steps` theo thứ
 tự, chạy `## Verify Command` từ `PROJECT.md` (tối đa 3 lần thử), và viết
 `.task/implementation.md` (`## Changes`, `## Deviations from Plan`,
-`## Verify`, `## Manual Test Checklist`), giới hạn ≤ 5.000 ký tự. Không
-commit — workflow không đụng vào git.
+`## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`), giới
+hạn ≤ 5.000 ký tự. Không commit — workflow không đụng vào git.
 
 ## Bước 4 — kiểm thử và sửa (lặp lại, không giới hạn vòng)
 
@@ -214,6 +249,16 @@ fix-agent chỉ đọc mục `## Follow-up N` hiện tại (không đọc các v
 áp dụng thay đổi an toàn nhỏ nhất, chạy lại Verify Command (tối đa 3 lần
 thử), và nối `## Follow-up N — Applied` — giới hạn ≤ 1.200 ký tự mỗi mục.
 
+**Chat mới** — nếu web chat *cùng* cuộc hội thoại ở trên đã quá dài hoặc mất
+ngữ cảnh, chạy `bin/copy-for-web.sh handoff` thay vì `result` rồi dán vào
+một web chat **mới**. Nó gửi một đoạn giới thiệu ngắn cùng OVERVIEW SUMMARY
+(`## Goal` + `## Acceptance Criteria`), bảng `## Steps` của plan, và vòng
+Follow-up mới nhất (hoặc phần Changes/Deviations của `implementation.md`),
+yêu cầu web xác nhận đã hiểu trước khi tiếp tục — không cần gõ lại ngữ cảnh
+ban đầu. Payload quá lớn sẽ tách OVERVIEW SUMMARY rồi tới CURRENT PLAN STEPS
+thành file đính kèm trong `.task/web/`. Tiếp tục vòng lặp ở trên trong chat
+mới đó.
+
 ## Bước 5 — Claude Code: lưu task
 
 Gõ `lưu task` (hoặc `save task`). Skill `save`:
@@ -227,8 +272,11 @@ Gõ `lưu task` (hoặc `save task`). Skill `save`:
   tồn tại với cùng Goal
 - copy `overview.md`, `context.md`, `plan.md`, `implementation.md`,
   `followups.md` vào `.task/done/{id}-{slug}/`
+- cho bạn xem các gợi ý `## PROJECT.md Candidates` từ `implementation.md`
+  và các dòng `PROJECT.md candidate` từ `followups.md`, rồi chỉ nối vào
+  `.task/PROJECT.md` những mục bạn duyệt — đây là ngoại lệ duy nhất so với
+  việc không bao giờ đụng vào file này
 - reset năm file đó về template rỗng và xoá `.task/web/`
-- không bao giờ đụng vào `.task/PROJECT.md`
 - xoá mục Active Task trong `index.md` và thêm một dòng History
 
 Không commit — bạn tự quản lý git; workflow không bao giờ stage hay commit
@@ -260,14 +308,19 @@ trong `.task/web/` — tự bạn đính kèm chúng trong web chat.
 ├── README.md
 ├── README.vi.md
 ├── bin/
+│   ├── attach.sh
 │   ├── copy-for-web.sh
 │   ├── install-untracked.sh
+│   ├── lean-note.md
 │   ├── plan-prompt.md
 │   ├── result-prompt.md
 │   ├── save-followup.sh
 │   ├── save-plan.sh
 │   └── lib/
+│       ├── copy-for-web-handoff.sh
+│       ├── copy-for-web-lean.sh
 │       ├── copy-for-web-lib.sh
+│       ├── copy-for-web-modes.sh
 │       ├── install-untracked-lib.sh
 │       └── save-plan-lib.sh
 ├── .claude/

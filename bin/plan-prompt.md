@@ -9,7 +9,9 @@ Produce a plan with these sections, in this order:
 
 - `## Summary` — approach, 5 lines max.
 - `## Decisions to Review` — key choices, rejected alternatives, risks.
-  Write `None` if there are none.
+  Every decision listed must carry an actual reason (why this over the
+  rejected alternative), not just the choice. Write `None` if there are
+  none.
 - `## AC Coverage` — for each Acceptance Criterion in the OVERVIEW below,
   list the step number(s) that cover it; mark any uncovered criterion
   explicitly.
@@ -23,7 +25,10 @@ Style: terse, sentence fragments are fine, do not restate context already
 given below. Include a code snippet only if essential to remove
 ambiguity. Target roughly 60 lines or fewer overall. The human reviewing
 your plan reads only the first three sections, so the Steps table alone
-must be enough for the executor to work from.
+must be enough for the executor to work from. The plan must be finite,
+concrete, and executable — not a sprawling many-phase epic; if the task
+is that large, say so in `## Out of Scope` and suggest splitting it
+instead of planning all of it.
 
 Ask me questions first if something critical is ambiguous; otherwise
 produce the plan directly.

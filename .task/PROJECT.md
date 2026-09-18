@@ -1,7 +1,9 @@
 # Project Context
 
 <!--
-  Filled in once per project by the human. No agent or skill may overwrite this file.
+  Filled in once per project by the human. No agent or skill may overwrite this file;
+  the only exception is the `save` skill, which may append human-approved bullets
+  (PROJECT.md Candidates).
 
   Purpose: persistent project-level context that all agents/skills should know about
   without having to re-explore the codebase each time.

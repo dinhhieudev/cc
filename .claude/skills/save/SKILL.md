@@ -49,7 +49,7 @@ not reset anything. Report:
 
 Otherwise, keep the id and slug from step 1 and continue to steps 3
 and 4, where step 4's copy overwrites the files already in the
-folder. Say so explicitly in the step 6 report.
+folder. Say so explicitly in the step 7 report.
 
 ### 3. Create archive folder
 
@@ -69,7 +69,35 @@ Copy these files into the archive folder (skip any that don't exist):
 - `implementation.md`
 - `followups.md`
 
-### 5. Reset workspace
+### 5. Present PROJECT.md Candidates
+
+Do this before resetting the workspace (step 6), while the files still
+exist. Read ONLY the `## PROJECT.md Candidates` section of
+`.task/implementation.md` (its final section — heading to end of file)
+and any `- PROJECT.md candidate:` lines inside `## Follow-up N —
+Applied` sections of `.task/followups.md`. Grep for these markers — do
+not read either file in full.
+
+If there are none, or the `## PROJECT.md Candidates` section is just
+`None` and there are no `- PROJECT.md candidate:` lines, skip this step
+silently and continue to step 6.
+
+Otherwise, show the human the candidate list, each paired with its
+target `## Section` of `.task/PROJECT.md`, and ask which to add (accept
+all / some / none — the human answers in free text). Only after the
+human answers, append the approved bullets to the matching sections of
+`.task/PROJECT.md`. Create no new sections — if a named section doesn't
+exist, ask the human rather than invent one. If the human declines or
+doesn't answer, change nothing.
+
+This is the ONLY step in this workflow allowed to modify
+`.task/PROJECT.md`. Its other content is never rewritten or reordered —
+only approved bullets are appended. Archiving and workspace reset
+proceed either way: the candidates are already archived with
+`implementation.md` and `followups.md` from step 4, regardless of the
+human's answer here.
+
+### 6. Reset workspace
 
 Overwrite each active workspace file with its blank template:
 
@@ -110,15 +138,17 @@ Overwrite each active workspace file with its blank template:
 <!-- fix-agent appends "## Follow-up N — Applied" after handling it. -->
 ```
 
-Never archive, reset, or otherwise modify `.task/PROJECT.md` — it is
-project-level and persists across tasks.
+Never archive, reset, or otherwise modify `.task/PROJECT.md` here — it
+is project-level and persists across tasks. The only exception in this
+workflow is step 5 (PROJECT.md Candidates), which may append
+human-approved bullets.
 
 Delete `.task/web/` if it exists — it holds scratch attachments
 `bin/copy-for-web.sh` collected for the web chat and is never archived.
 
-**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`in-progress`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments. The blank templates written in this step stay in English regardless of setting — they are structural placeholders, not prose.
+**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`spec`, `planned`, `executing`, `fixing`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments. The blank templates written in this step stay in English regardless of setting — they are structural placeholders, not prose.
 
-### 6. Update index.md and report
+### 7. Update index.md and report
 
 In `.task/index.md`:
 - Clear the Active Task section (set all fields to `—`)
@@ -138,7 +168,7 @@ follow-up, say so explicitly here.
 ## Rules
 
 - Do not modify production source files.
-- Do not modify `.task/PROJECT.md`.
+- Do not modify `.task/PROJECT.md`, except appending human-approved bullets in step 5 (PROJECT.md Candidates).
 - Do not delete files from `.task/done/`.
 - If `.task/index.md` doesn't exist, create it with the History table before updating.
 - Never archive an unfinished follow-up without the human's explicit confirmation.

@@ -159,6 +159,28 @@ $flat — $rel_path"
   fi
 }
 
+# Builds the PROJECT_SECTION global from .task/PROJECT.md if it has real
+# content beyond the Language line; warns to stderr and leaves
+# PROJECT_SECTION empty otherwise. Shared by plan mode and lean mode.
+build_project_section() {
+  PROJECT_SECTION=""
+  if [[ ! -f .task/PROJECT.md ]]; then
+    echo "Warning: .task/PROJECT.md is missing — the AI web planner will not receive project architecture/conventions." >&2
+  elif ! project_has_substance .task/PROJECT.md; then
+    echo "Warning: .task/PROJECT.md has no project context filled in (only the Language section) — the AI web planner will not receive project architecture/conventions." >&2
+  else
+    PROJECT_SECTION=$'--- PROJECT ---\n'"$(cat .task/PROJECT.md)"
+  fi
+}
+
+# Header line prepended to every payload; ID-Name from index.md, project name from PROJECT.md's ## Project (else cwd basename).
+build_header_line() {
+  local id="" name="" project_name=""
+  read -r id name < <(awk -F'|' '/^## Active Task/{s=1;next} /^## /{s=0} s{f=$2;gsub(/^[ \t]+|[ \t]+$/,"",f);v=$3;gsub(/^[ \t]+|[ \t]+$/,"",v);if(f=="ID")id=v;if(f=="Name")name=v}END{print id,name}' .task/index.md 2>/dev/null) || true
+  project_name=$(awk '/^## Project$/{s=1;next} /^## /{s=0} s' .task/PROJECT.md 2>/dev/null | strip_comments /dev/stdin | awk 'NF{print;exit}') || true
+  [[ -n "$project_name" ]] || project_name="$(basename "$PWD")"; printf '[claude++ task %s-%s — %s]' "$id" "$name" "$project_name"
+}
+
 copy_to_clipboard() {
   local payload="$1"
   if command -v pbcopy >/dev/null 2>&1; then

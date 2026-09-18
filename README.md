@@ -39,8 +39,8 @@ target's git status. It copies:
 - `.claude/skills/save/`
 - `.task/` — only if the target has no `.task/` yet (a fresh install; an
   existing `.task/` is left untouched)
-- `bin/{copy-for-web.sh,plan-prompt.md,result-prompt.md,save-plan.sh,save-followup.sh}`
-  and `bin/lib/{copy-for-web-lib.sh,save-plan-lib.sh}`
+- `bin/{copy-for-web.sh,plan-prompt.md,result-prompt.md,save-plan.sh,save-followup.sh,attach.sh,lean-note.md}`
+  and `bin/lib/{copy-for-web-lib.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
 
 It also merges this repo's `CLAUDE.md` (Agent Routing table + hard rules)
 into the target's `CLAUDE.local.md` between marker comments, and adds a
@@ -106,7 +106,9 @@ Fill in `.task/PROJECT.md`: `## Project`, `## Tech Stack`,
 exact shell command (`npm run typecheck`, `swift build`, ...) that
 execute-agent and fix-agent must run before reporting done. `## Language`
 ships pre-filled with `Language: en`; change it to `vi` for Vietnamese
-output. This file is never modified by any agent or skill — you own it.
+output. This file is never modified by any agent or skill except the
+`save` skill, which may append bullets you approve in Step 5 — otherwise
+you own it.
 
 When `Language: vi`, `bin/copy-for-web.sh` also appends a line to the web
 prompt (both planning and result-review payloads) asking the AI web to
@@ -134,7 +136,18 @@ codebase (via CodeGraph if the target has `.codegraph/`), and writes:
   `## Relevant Code Snippets`, `## Unknowns`, `## Files to Attach` — max 10
   paths), budget ≤ 12,000 characters
 - `.task/index.md` — Active Task section (ID, Name, Started, Status =
-  `in-progress`)
+  `spec`). Status then advances: `planned` when `bin/save-plan.sh` saves a
+  plan, `executing` when execute-agent starts, `fixing` when a follow-up
+  round starts, `done` when the task is saved.
+
+**Lean alternative** — for a small project, or when you already know the area: say
+`task (lean): <request>` (alias: `task lean: <request>`) instead. context-agent writes
+only `.task/overview.md` (same spec, same budget) from `.task/PROJECT.md`, your request,
+and at most 3 files you name explicitly — it does not otherwise explore the codebase, and
+leaves `.task/context.md` as its blank template. This saves Claude tokens at the cost of
+one extra round trip with the web planner; for a large, unfamiliar codebase the normal
+path's `context.md` gives the planner better context, so prefer that instead. Continue at
+Step 2 with `bin/copy-for-web.sh --lean` rather than the plain form.
 
 ## Step 2 — AI web: planning
 
@@ -161,24 +174,48 @@ fixed sections: `## Summary`, `## Decisions to Review`, `## AC Coverage`,
 `## Open Questions`. You only need to review the first three sections —
 Summary, Decisions to Review, AC Coverage.
 
+**Lean alternative** — after `bin/copy-for-web.sh --lean` (see Step 1), the payload swaps
+`.task/context.md` for a FILE TREE of the project (`git ls-files`, or a pruned `find`
+outside a git repo) and adds `bin/lean-note.md` to the prompt, asking the web planner to
+first reply with the files it wants (at most 15 paths from the tree) before producing a
+plan. Run `bin/attach.sh <path> [<path>...]` to copy those files into `.task/web/`
+(flattened, with the mapping and a running character count printed; also accepts `-` to
+read paths from stdin), attach them in the same web chat, and ask for the plan — then
+continue at Step 3 unchanged. An oversized FILE TREE degrades: noisy files (lockfiles,
+images, `*.min.*`, `.task/**`) drop first, then it collapses to per-directory
+`dir/ (N files)` counts, then the full tree is attached as `.task/web/file-tree.txt`;
+`--split` forces the FILE TREE and PROJECT straight to attachments.
+
 ## Step 3 — Claude Code: execute
 
-Copy the plan from the web chat, then run:
+Default: copy the plan from the web chat and paste it straight into the
+conversation with `implement this plan: <plan>` (or `triển khai plan này:
+...`, or just the plan text itself). Claude writes it verbatim to
+`.task/plan.md` (overwriting whatever was there), runs `bin/save-plan.sh
+--check` to validate it, reports any warnings in a line or two, and
+dispatches **execute-agent** anyway — warnings are informational, not
+blocking.
+
+Cheaper alternative, if you'd rather the plan never enter the Claude
+conversation: copy the plan from the web chat, then run:
 
 ```
-bin/save-plan.sh [--force]
+bin/save-plan.sh [--force] | --stdin [--force] | --check
 ```
 
-It writes the clipboard to `.task/plan.md`, and warns (non-fatally) about
-missing required headings, unresolved `## Open Questions`, or `## Steps`
-file paths that don't exist and aren't marked as new. It refuses to
-overwrite an already-filled `plan.md` unless `--force` is given.
+With no flags it reads the clipboard and writes it to `.task/plan.md`,
+running the same validation, and warns (non-fatally) about missing required
+headings, unresolved `## Open Questions`, a `## Decisions to Review` section
+that looks thin (short bullets with no visible reasoning), or `## Steps`
+file paths that don't exist and aren't marked as new. It refuses to overwrite an
+already-filled `plan.md` unless `--force` is given. `--stdin` reads the plan
+from stdin instead of the clipboard (e.g. `cat plan.txt | bin/save-plan.sh
+--stdin`) and otherwise behaves exactly like the clipboard route. `--check`
+validates the existing `.task/plan.md` in place — no clipboard read, no
+write — and errors only if the file is missing or still a placeholder.
 
 Then tell Claude `run execute` (or `chạy execute`) — main context dispatches
-**execute-agent** directly without reading `plan.md` itself. Fallback: paste
-a plan straight into the conversation with `implement this plan: <plan>` (or
-`triển khai plan này: ...`), and main context writes it to `.task/plan.md`
-first.
+**execute-agent** directly without reading `plan.md` itself.
 
 execute-agent reads `PROJECT.md`, `overview.md`, `plan.md`, checks
 `## AC Coverage` against every Acceptance Criterion, and escalates instead
@@ -186,8 +223,8 @@ of guessing on a blocking `## Open Questions` entry, an architectural
 conflict, or anything security-sensitive. It implements `## Steps` in order,
 runs the `## Verify Command` from `PROJECT.md` (up to 3 attempts), and
 writes `.task/implementation.md` (`## Changes`, `## Deviations from Plan`,
-`## Verify`, `## Manual Test Checklist`), budget ≤ 5,000 characters. No
-commit — the workflow doesn't touch git.
+`## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`), budget
+≤ 5,000 characters. No commit — the workflow doesn't touch git.
 
 ## Step 4 — test and fix (loop, no round limit)
 
@@ -216,6 +253,16 @@ rounds), applies the smallest safe change, re-runs the Verify Command (up to
 3 attempts), and appends `## Follow-up N — Applied` — budget ≤ 1,200
 characters per section.
 
+**Fresh chat** — if the *same* web chat above has gotten too long or lost
+context, run `bin/copy-for-web.sh handoff` instead of `result` and paste it
+into a **new** web chat. It sends a short intro plus an OVERVIEW SUMMARY
+(`## Goal` + `## Acceptance Criteria`), the plan's `## Steps` table, and the
+latest Follow-up round (or `implementation.md`'s Changes/Deviations),
+asking the web to confirm it understands before continuing — no need to
+retype the original context. Oversized payloads split OVERVIEW SUMMARY then
+CURRENT PLAN STEPS to `.task/web/` attachments. Continue the loop above in
+that new chat.
+
 ## Step 5 — Claude Code: save the task
 
 Say `save task` (or `lưu task`). The `save` skill:
@@ -229,8 +276,11 @@ Say `save task` (or `lưu task`). The `save` skill:
   already exists for the same Goal
 - copies `overview.md`, `context.md`, `plan.md`, `implementation.md`,
   `followups.md` into `.task/done/{id}-{slug}/`
+- shows you any `## PROJECT.md Candidates` bullets from `implementation.md`
+  and `PROJECT.md candidate` lines from `followups.md`, and appends only
+  the ones you approve to the matching section of `.task/PROJECT.md` — its
+  one exception to never touching that file
 - resets those five files to their blank templates and deletes `.task/web/`
-- never touches `.task/PROJECT.md`
 - clears the Active Task section in `index.md` and adds a History row
 
 No commit — you own git; the workflow never stages or commits anything.
@@ -261,14 +311,19 @@ Whatever doesn't fit is split into attachment files under `.task/web/` by
 ├── README.md
 ├── README.vi.md
 ├── bin/
+│   ├── attach.sh
 │   ├── copy-for-web.sh
 │   ├── install-untracked.sh
+│   ├── lean-note.md
 │   ├── plan-prompt.md
 │   ├── result-prompt.md
 │   ├── save-followup.sh
 │   ├── save-plan.sh
 │   └── lib/
+│       ├── copy-for-web-handoff.sh
+│       ├── copy-for-web-lean.sh
 │       ├── copy-for-web-lib.sh
+│       ├── copy-for-web-modes.sh
 │       ├── install-untracked-lib.sh
 │       └── save-plan-lib.sh
 ├── .claude/

@@ -21,7 +21,7 @@ The plan comes from AI web and uses these headings: `## Summary`,
 `## Decisions to Review`, `## AC Coverage`, `## Steps` (table
 `| # | File | Change | Notes |`), `## Out of Scope`, `## Open Questions`.
 
-Then inspect the actual codebase.
+Set `.task/index.md` Active Task Status to `executing` (it stays `executing` through completion — `save` sets it to `done`), then inspect the actual codebase.
 
 ## Priority
 
@@ -31,7 +31,7 @@ Then inspect the actual codebase.
 
 The actual codebase is the source of truth.
 
-**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`in-progress`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.
+**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`spec`, `planned`, `executing`, `fixing`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.
 
 ## Token Discipline
 
@@ -173,12 +173,12 @@ with why. If none: None.
 
 ## Manual Test Checklist
 - [ ] ...
+
+## PROJECT.md Candidates
+- <PROJECT.md section name>: <the fact>
 ```
 
-This file is pasted into the web chat later (alongside `.task/followups.md`,
-in one message limited to 25,000 characters total) — keep it terse.
-**Budget: `.task/implementation.md` must be ≤ 5,000 characters** (check
-with `wc -m .task/implementation.md`; compress if over).
+`## PROJECT.md Candidates`: at most 5 bullets, each a single line, each a durable project-level fact worth adding to `.task/PROJECT.md` that is NOT already stated there (a convention, architectural constraint, important file, or gotcha) — format `- <PROJECT.md section name>: <the fact>`. Write `None` when nothing qualifies — that is the normal case for a routine task; task-specific detail, restatements of PROJECT.md, and anything already in the code's own docs don't qualify. This file is pasted into the web chat later (alongside `.task/followups.md`, in one message limited to 25,000 characters total) — keep it terse. **Budget: `.task/implementation.md` must be ≤ 5,000 characters**, this section included (check with `wc -m .task/implementation.md`; compress if over).
 
 ### 6. Final Report
 

@@ -21,7 +21,7 @@ Then read only the current `## Follow-up N` section of
 `.task/followups.md`. Do not read the entire follow-up history — earlier
 rounds are irrelevant to the current one.
 
-Then inspect the actual codebase.
+Set `.task/index.md` Active Task Status to `fixing`, then inspect the actual codebase.
 
 Follow-up requests may come from the human directly (a quick fix/add
 request) or from AI web review; treat both the same way.
@@ -33,7 +33,7 @@ request) or from AI web review; treat both the same way.
 3. Current `## Follow-up N` request
 4. Task overview
 
-**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`in-progress`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.
+**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`spec`, `planned`, `executing`, `fixing`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.
 
 ## Token Discipline
 
@@ -103,13 +103,21 @@ Manual test:
 - [ ] ...
 
 Not done: {only if something was skipped or impossible, with why}
+
+- PROJECT.md candidate: {section}: {fact}
 ```
 
+Add a `- PROJECT.md candidate: <PROJECT.md section name>: <fact>` line
+only when this follow-up revealed a durable project-level fact NOT
+already stated in `.task/PROJECT.md` (a convention, an architectural
+constraint, an important file, a gotcha) — omit it entirely otherwise;
+having none is the normal case.
+
 Keep it terse. **Budget: each `## Follow-up N — Applied` section must be
-≤ 1,200 characters** (check with `wc -m`; compress if over) — it, plus
-`implementation.md` and every other Applied section, is pasted into web
-in one message limited to 25,000 characters total via
-`bin/copy-for-web.sh result`.
+≤ 1,200 characters** (check with `wc -m`; compress if over), including
+any `PROJECT.md candidate` lines — it, plus `implementation.md` and
+every other Applied section, is pasted into web in one message limited
+to 25,000 characters total via `bin/copy-for-web.sh result`.
 
 ## Escalation
 

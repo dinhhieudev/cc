@@ -14,17 +14,43 @@ check_required_headings() {
   fi
 }
 
+# Prints the body lines of the named "## <heading>" section (stops at the
+# next "## " heading).
+section_body() {
+  local plan_file="$1" heading="$2"
+  awk -v h="^## $heading[[:space:]]*\$" '
+    $0 ~ h { found = 1; next }
+    /^## / { if (found) exit }
+    found { print }
+  ' "$plan_file"
+}
+
 # Warns if "## Open Questions" has real content (not empty, not "None").
 check_open_questions() {
   local plan_file="$1" body trimmed
-  body="$(awk '
-    /^## Open Questions[[:space:]]*$/ { found = 1; next }
-    /^## / { if (found) exit }
-    found { print }
-  ' "$plan_file")"
+  body="$(section_body "$plan_file" "Open Questions")"
   trimmed="$(printf '%s' "$body" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
   if [[ -n "$trimmed" && "$trimmed" != "none" ]]; then
     echo "Warning: plan still has open questions; answer them in the web chat before running execute" >&2
+  fi
+}
+
+# Warns if "## Decisions to Review" is present (not empty, not "None") but
+# every non-empty line in it is short — a heuristic for a bullet with no
+# visible reasoning.
+check_thin_decisions() {
+  local plan_file="$1" body trimmed long_count
+  body="$(section_body "$plan_file" "Decisions to Review")"
+  trimmed="$(printf '%s' "$body" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+  [[ -z "$trimmed" || "$trimmed" == "none" ]] && return
+  long_count="$(printf '%s\n' "$body" | awk '
+    { gsub(/^[[:space:]]+|[[:space:]]+$/, "") }
+    length($0) == 0 { next }
+    length($0) >= 40 { n++ }
+    END { print n + 0 }
+  ')"
+  if [[ "$long_count" -eq 0 ]]; then
+    echo "Warning: Decisions to Review looks thin (no visible reasoning) — consider asking the web planner to expand it." >&2
   fi
 }
 
