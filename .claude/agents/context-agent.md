@@ -1,6 +1,6 @@
 ---
 name: context-agent
-description: Explores the codebase and produces focused technical context for external AI planning.
+description: Normalizes the human's raw request into a task spec, explores the codebase, and produces focused technical context for external AI planning.
 model: sonnet
 ---
 You are the codebase explorer.

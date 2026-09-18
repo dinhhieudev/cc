@@ -76,20 +76,10 @@
 -->
 <!-- execute-agent and fix-agent MUST run this before reporting done. -->
 
-## Git
-
-<!-- Base branch: the branch task branches are cut from and merged back into. -->
-<!-- Task branch prefix: prefix used when creating a task branch, e.g. task/042-add-dark-mode. -->
-<!-- Both "Base branch:" and "Task branch prefix:" are read by tooling — the -->
-<!-- value must follow the colon on the same line. -->
-
-Base branch: main
-Task branch prefix: task/
-
 ## Language
 
 <!-- Output language for prose agents write into .task/*.md and their final reports. -->
 <!-- Allowed values: en (default), vi. Read by agents and bin/ scripts — value must follow the colon on the same line. -->
-<!-- Headings, file names, branch names, commit messages, and code always stay English. -->
+<!-- Headings, file names, task slugs, and code always stay English. -->
 
 Language: en

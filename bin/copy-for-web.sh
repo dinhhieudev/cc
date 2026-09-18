@@ -1,15 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/copy-for-web-lib.sh"
+
+LIMIT="${WEB_CHAR_LIMIT:-25000}"
+
 usage() {
   cat <<'EOF'
-Usage: copy-for-web.sh
+Usage: copy-for-web.sh [result] [--split]
 
-Concatenates .task/PROJECT.md, .task/overview.md, and .task/context.md
-(with separator headers) and copies the result to the clipboard, for
-pasting into a ChatGPT/Gemini web conversation. If .task/PROJECT.md is
-missing or empty, it is skipped with a warning instead of failing —
-unlike overview.md and context.md, which are required.
+No argument: builds the planning payload from .task/PROJECT.md (if it
+has real content), .task/overview.md, and .task/context.md, prefixed
+with the planning prompt (bin/plan-prompt.md), and copies it to the
+clipboard for pasting into a ChatGPT/Gemini web conversation.
+
+result: builds the result-review payload from .task/implementation.md
+and .task/followups.md (if it has real content), prefixed with the
+result prompt (bin/result-prompt.md).
+
+If .task/PROJECT.md's Language is vi, a line asking for a Vietnamese
+response is appended after the prompt.
+
+The web chat accepts at most WEB_CHAR_LIMIT characters per message
+(default 25000). If the payload would exceed it, the largest sections
+are written to files under .task/web/ instead (CONTEXT then PROJECT in
+plan mode; FOLLOW-UPS then IMPLEMENTATION in result mode) and the
+clipboard message references them by name — attach those files in the
+web chat yourself. .task/web/ is cleared and rebuilt on every run.
+--split forces CONTEXT and PROJECT to attachments regardless of size
+(plan mode only). Warns if the message still exceeds 85% of the limit.
 
 Must be run from the root of a project that has a .task/ directory.
 
@@ -18,129 +38,160 @@ Options:
 EOF
 }
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  usage
-  exit 0
-fi
-
-if [[ $# -gt 0 ]]; then
-  echo "Error: copy-for-web.sh takes no arguments." >&2
-  usage >&2
-  exit 1
-fi
+MODE="plan"
+FORCE_SPLIT=0
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) usage; exit 0 ;;
+    result) MODE="result" ;;
+    --split) FORCE_SPLIT=1 ;;
+    *) echo "Error: unrecognized argument '$arg'." >&2; usage >&2; exit 1 ;;
+  esac
+done
 
 if [[ ! -d .task ]]; then
   echo "Error: no .task/ directory found here. Run this from the project root." >&2
   exit 1
 fi
 
-# Placeholder files contain nothing but a heading and HTML comment(s); strip
-# comments (including ones spanning multiple lines), heading lines, and blank
-# lines, then check whether anything real is left.
-strip_comments() {
-  awk '
-    BEGIN { incomment = 0 }
-    {
-      line = $0
-      out = ""
-      while (length(line) > 0) {
-        if (incomment) {
-          end = index(line, "-->")
-          if (end == 0) { line = "" }
-          else { line = substr(line, end + 3); incomment = 0 }
-        } else {
-          start = index(line, "<!--")
-          if (start == 0) { out = out line; line = "" }
-          else {
-            out = out substr(line, 1, start - 1)
-            line = substr(line, start + 4)
-            incomment = 1
-          }
-        }
-      }
-      print out
-    }
-  ' "$1"
-}
+# .task/web/ always mirrors just this run's attachments.
+WEB_DIR=.task/web
+rm -rf "$WEB_DIR"
+mkdir -p "$WEB_DIR"
+WEB_DIR_ABS="$(cd "$WEB_DIR" && pwd)"
+WEB_FILES=()
 
-has_real_content() {
-  strip_comments "$1" | awk '
-    /^[[:space:]]*#/ { next }
-    /^[[:space:]]*$/ { next }
-    { found = 1 }
-    END { exit(found ? 0 : 1) }
-  '
-}
-
-# .task/PROJECT.md ships with its ## Git section pre-filled (Base branch /
-# Task branch prefix) and its ## Language section pre-filled (Language: en),
-# so has_real_content alone would never flag a PROJECT.md whose substantive
-# sections are all still blank. Strip those pre-filled lines too before
-# checking for real content.
-project_has_substance() {
-  strip_comments "$1" | awk '
-    /^[[:space:]]*#/ { next }
-    /^[[:space:]]*$/ { next }
-    /^Base branch:/ { next }
-    /^Task branch prefix:/ { next }
-    /^Language:/ { next }
-    { found = 1 }
-    END { exit(found ? 0 : 1) }
-  '
-}
-
-# .task/PROJECT.md is filled in once by the human, not generated per task —
-# missing or empty is a warning, not a hard failure.
-PROJECT_SECTION=""
-if [[ ! -f .task/PROJECT.md ]]; then
-  echo "Warning: .task/PROJECT.md is missing — the AI web planner will not receive project architecture/conventions." >&2
-elif ! project_has_substance .task/PROJECT.md; then
-  echo "Warning: .task/PROJECT.md has no project context filled in (only the Git/Language sections) — the AI web planner will not receive project architecture/conventions." >&2
+if [[ "$MODE" == "plan" ]]; then
+  PROMPT_FILE="$SCRIPT_DIR/plan-prompt.md"
 else
-  PROJECT_SECTION=$(printf '%s\n%s' "--- PROJECT ---" "$(cat .task/PROJECT.md)")
+  PROMPT_FILE="$SCRIPT_DIR/result-prompt.md"
+fi
+[[ -f "$PROMPT_FILE" ]] || { echo "Error: $PROMPT_FILE not found." >&2; exit 1; }
+
+PROMPT="$(cat "$PROMPT_FILE")"
+if [[ "$(get_language .task/PROJECT.md)" == "vi" ]]; then
+  PROMPT="$PROMPT
+Write your response in Vietnamese (keep the ## headings and file paths in English)."
 fi
 
-for f in .task/overview.md .task/context.md; do
-  if [[ ! -f "$f" ]]; then
-    echo "Error: $f not found. Run the overview step first." >&2
-    exit 1
-  fi
-  if ! has_real_content "$f"; then
-    echo "Error: $f still contains only its placeholder comment. Run the overview step first." >&2
-    exit 1
-  fi
-done
-
-copy_to_clipboard() {
-  local payload="$1"
-  if command -v pbcopy >/dev/null 2>&1; then
-    printf '%s' "$payload" | pbcopy
-    echo "Copied to clipboard (pbcopy)." >&2
-  elif command -v xclip >/dev/null 2>&1; then
-    printf '%s' "$payload" | xclip -selection clipboard
-    echo "Copied to clipboard (xclip)." >&2
-  elif command -v xsel >/dev/null 2>&1; then
-    printf '%s' "$payload" | xsel --clipboard --input
-    echo "Copied to clipboard (xsel)." >&2
+if [[ "$MODE" == "plan" ]]; then
+  PROJECT_SECTION=""
+  if [[ ! -f .task/PROJECT.md ]]; then
+    echo "Warning: .task/PROJECT.md is missing — the AI web planner will not receive project architecture/conventions." >&2
+  elif ! project_has_substance .task/PROJECT.md; then
+    echo "Warning: .task/PROJECT.md has no project context filled in (only the Language section) — the AI web planner will not receive project architecture/conventions." >&2
   else
-    echo "No clipboard tool found (pbcopy/xclip/xsel); printing payload to stdout instead." >&2
-    printf '%s\n' "$payload"
+    PROJECT_SECTION=$'--- PROJECT ---\n'"$(cat .task/PROJECT.md)"
   fi
-}
 
-PROJECT_SEP=""
-if [[ -n "$PROJECT_SECTION" ]]; then
-  PROJECT_SEP=$'\n\n'
+  for f in .task/overview.md .task/context.md; do
+    if [[ ! -f "$f" ]]; then
+      echo "Error: $f not found. Run the overview step first." >&2
+      exit 1
+    fi
+    if ! has_real_content "$f"; then
+      echo "Error: $f still contains only its placeholder comment. Run the overview step first." >&2
+      exit 1
+    fi
+  done
+
+  OVERVIEW_SECTION=$'--- OVERVIEW ---\n'"$(cat .task/overview.md)"
+  CONTEXT_SECTION=$'--- CONTEXT ---\n'"$(cat .task/context.md)"
+  CONTEXT_DISPLAY="$CONTEXT_SECTION"
+  PROJECT_DISPLAY="$PROJECT_SECTION"
+
+  copy_attach_files "$WEB_DIR"
+
+  recompute() {
+    set_blocks "prompt" "$PROMPT" "PROJECT" "$PROJECT_DISPLAY" "OVERVIEW" "$OVERVIEW_SECTION" \
+      "CONTEXT" "$CONTEXT_DISPLAY" "ATTACHED FILES" "$ATTACH_LIST"
+    PAYLOAD="$(join_blocks "${BLOCKS[@]}")"
+    TOTAL_CHARS=$(count_chars "$PAYLOAD")
+  }
+  recompute
+
+  if [[ "$FORCE_SPLIT" -eq 1 || "$TOTAL_CHARS" -gt "$LIMIT" ]]; then
+    cat .task/context.md > "$WEB_DIR/context.md"
+    WEB_FILES+=("context.md")
+    CONTEXT_DISPLAY="--- CONTEXT --- (attached as context.md)"
+    recompute
+
+    if [[ -n "$PROJECT_DISPLAY" ]] && { [[ "$FORCE_SPLIT" -eq 1 ]] || [[ "$TOTAL_CHARS" -gt "$LIMIT" ]]; }; then
+      cat .task/PROJECT.md > "$WEB_DIR/project.md"
+      WEB_FILES+=("project.md")
+      PROJECT_DISPLAY="--- PROJECT --- (attached as project.md)"
+      recompute
+    fi
+
+    if [[ "$TOTAL_CHARS" -gt "$LIMIT" ]]; then
+      echo "Error: even with CONTEXT/PROJECT attached, payload is $TOTAL_CHARS chars, over the $LIMIT char limit." >&2
+      echo "Section breakdown:" >&2
+      print_breakdown
+      exit 1
+    fi
+  fi
+else
+  if [[ ! -f .task/implementation.md ]] || ! has_real_content .task/implementation.md; then
+    echo "Error: .task/implementation.md not found or still a placeholder. Run execute first." >&2
+    exit 1
+  fi
+
+  IMPLEMENTATION_SECTION=$'--- IMPLEMENTATION ---\n'"$(cat .task/implementation.md)"
+  IMPLEMENTATION_DISPLAY="$IMPLEMENTATION_SECTION"
+  FOLLOWUPS_DISPLAY=""
+  if [[ -f .task/followups.md ]] && has_real_content .task/followups.md; then
+    FOLLOWUPS_DISPLAY=$'--- FOLLOW-UPS ---\n'"$(cat .task/followups.md)"
+  fi
+
+  recompute() {
+    set_blocks "prompt" "$PROMPT" "IMPLEMENTATION" "$IMPLEMENTATION_DISPLAY" "FOLLOW-UPS" "$FOLLOWUPS_DISPLAY"
+    PAYLOAD="$(join_blocks "${BLOCKS[@]}")"
+    TOTAL_CHARS=$(count_chars "$PAYLOAD")
+  }
+  recompute
+
+  if [[ "$TOTAL_CHARS" -gt "$LIMIT" ]]; then
+    if [[ -n "$FOLLOWUPS_DISPLAY" ]]; then
+      cat .task/followups.md > "$WEB_DIR/followups.md"
+      WEB_FILES+=("followups.md")
+      FOLLOWUPS_DISPLAY="--- FOLLOW-UPS --- (attached as followups.md)"
+      recompute
+    fi
+
+    if [[ "$TOTAL_CHARS" -gt "$LIMIT" ]]; then
+      cat .task/implementation.md > "$WEB_DIR/implementation.md"
+      WEB_FILES+=("implementation.md")
+      IMPLEMENTATION_DISPLAY="--- IMPLEMENTATION --- (attached as implementation.md)"
+      recompute
+    fi
+
+    if [[ "$TOTAL_CHARS" -gt "$LIMIT" ]]; then
+      echo "Error: even with FOLLOW-UPS/IMPLEMENTATION attached, payload is $TOTAL_CHARS chars, over the $LIMIT char limit." >&2
+      echo "Section breakdown:" >&2
+      print_breakdown
+      exit 1
+    fi
+  fi
 fi
 
-PAYLOAD=$(printf '%s%s%s\n%s\n\n%s\n%s\n' \
-  "$PROJECT_SECTION" "$PROJECT_SEP" \
-  "--- OVERVIEW ---" "$(cat .task/overview.md)" \
-  "--- CONTEXT ---" "$(cat .task/context.md)")
+WARN_AT=$((LIMIT * 85 / 100))
+if [[ "$TOTAL_CHARS" -gt "$WARN_AT" ]]; then
+  echo "Warning: payload is $TOTAL_CHARS chars, over 85% of the $LIMIT char limit." >&2
+  echo "Section breakdown:" >&2
+  print_breakdown
+fi
 
 copy_to_clipboard "$PAYLOAD"
 
 LINES=$(printf '%s\n' "$PAYLOAD" | wc -l | tr -d ' ')
-CHARS=$(printf '%s' "$PAYLOAD" | wc -c | tr -d ' ')
-TOKENS=$((CHARS / 4))
-echo "Copied $LINES lines (~$TOKENS tokens estimated) to clipboard." >&2
+echo "Copied $LINES lines, $TOTAL_CHARS chars (limit $LIMIT)." >&2
+
+if [[ ${#WEB_FILES[@]} -gt 0 ]]; then
+  echo "Attach these files from .task/web/ ($WEB_DIR_ABS):" >&2
+  for f in "${WEB_FILES[@]}"; do
+    echo "  $f" >&2
+  done
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    echo "  open .task/web" >&2
+  fi
+fi

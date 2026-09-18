@@ -1,6 +1,6 @@
 ---
 name: fix-agent
-description: Validates and fixes issues identified by an external AI code review.
+description: Applies follow-up fixes or additional work for the current task.
 model: sonnet
 ---
 You are the implementation fix worker.

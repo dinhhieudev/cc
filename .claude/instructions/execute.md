@@ -8,14 +8,18 @@ Read, in order:
 
     .task/PROJECT.md
     .task/overview.md
-    .task/context.md
     .task/plan.md
 
 `.task/plan.md` is the plan to implement. If it is empty or still the
 placeholder template, STOP and report exactly:
 
 > `.task/plan.md` is empty. Main context must write the approved plan to
-> `.task/plan.md` before dispatching execute-agent.
+> `.task/plan.md` (via `bin/save-plan.sh` or a pasted plan) before
+> dispatching execute-agent.
+
+The plan comes from AI web and uses these headings: `## Summary`,
+`## Decisions to Review`, `## AC Coverage`, `## Steps` (table
+`| # | File | Change | Notes |`), `## Out of Scope`, `## Open Questions`.
 
 Then inspect the actual codebase.
 
@@ -23,12 +27,17 @@ Then inspect the actual codebase.
 
 1. Actual codebase
 2. Approved implementation plan
-3. Technical context
-4. Task overview
+3. Task overview
 
 The actual codebase is the source of truth.
 
-**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Fix Notes — Round N`, `## Fixes Applied — Round N`, `## Round N`) — tooling and routing grep these exact strings; `Base branch:` / `Task branch prefix:` / `Language:` lines; `.task/index.md` table field names, status values (`in-progress`, `done`) and `—` placeholders; template labels such as `Result:` / `Issues found:`; file paths; git branch names and slugs; commit messages and tag names; code, identifiers, and code comments.
+**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`in-progress`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.
+
+## Token Discipline
+
+The plan is the source of instructions. Read only the files it names plus
+what is strictly needed to apply each change correctly — no broad
+re-exploration of the codebase. Do not restate the plan in your report.
 
 ## Escalation
 
@@ -40,9 +49,10 @@ If you encounter:
 - unclear API design
 - difficult compiler/type-system problems
 - security-sensitive behavior
+- a blocking `## Open Questions` entry in the plan
 - a problem that cannot be safely resolved from the plan
 
-DO NOT invent a solution.
+DO NOT guess or invent a solution.
 
 Stop and report:
 1. What you found
@@ -65,20 +75,19 @@ Implement the approved plan accurately while minimizing:
 ### 1. Validate the Plan
 
 Before changing code:
-- read the plan
-- identify files mentioned by the plan
-- verify that they actually exist or should be created
-- verify that assumptions still match the current codebase
+- read `## Steps` and identify the files it touches
+- verify those files exist or should be created
+- verify assumptions still match the current codebase
+- use `## AC Coverage` to check the plan addresses every Acceptance
+  Criterion in `.task/overview.md`
+- read `## Open Questions`; if any entry blocks implementation, STOP
+  before changing any code and report it (see Escalation) — do not
+  guess on a real decision
 
-If the plan conflicts with the actual codebase:
-DO NOT blindly follow it.
-
-Determine whether the conflict is:
-- trivial and safely resolvable
-- architectural
-- ambiguous
-
-For architectural or ambiguous conflicts, stop and report the issue.
+If the plan conflicts with the actual codebase, do not blindly follow
+it. Determine whether the conflict is trivial and safely resolvable,
+architectural, or ambiguous. For architectural or ambiguous conflicts,
+stop and report the issue (see Escalation).
 
 ### 2. Inspect Existing Patterns
 
@@ -93,7 +102,7 @@ the problem.
 
 ### 3. Implement
 
-Implement the plan in small logical changes.
+Implement `## Steps` in order, in small logical changes.
 
 Prefer:
 - simple code
@@ -115,12 +124,20 @@ After implementation:
 - inspect changed files
 - check obvious integration issues
 - review the diff
-- ensure acceptance criteria are addressed
+- confirm every Acceptance Criterion is addressed (cross-check against
+  `## AC Coverage`)
 - run the `## Verify Command` from `.task/PROJECT.md`
+
+Do not read the whole verify log into context: redirect its output to a
+temp file, then read back only the last ~50 lines plus any lines matching
+an error/warning pattern (e.g. `{command} > /tmp/verify.log 2>&1; tail -n
+50 /tmp/verify.log; grep -iE 'error|failed|warning' /tmp/verify.log | head -40`).
+Record only the pass/fail verdict and the essential error lines in `.task/implementation.md`.
 
 The Verify Command must pass before proceeding. If it fails, fix the code
 and re-run it, up to 3 attempts total. If it still fails after the third
-attempt, STOP and report exactly:
+attempt, write `.task/implementation.md` with `## Verify` showing the
+failing command and output, then STOP and report exactly:
 
 > The Verify Command (`{verify command}`) still fails after 3 attempts.
 >
@@ -134,52 +151,10 @@ attempt, STOP and report exactly:
 > - {summary of attempt 2}
 > - {summary of attempt 3}
 
-Do not write `review.md` or `implementation.md`, do not commit, and do
-not tag when stopping this way. If `.task/PROJECT.md` has no Verify
-Command filled in, say so explicitly in the self-review instead of
-silently skipping this step.
+If `.task/PROJECT.md` has no Verify Command filled in, say so explicitly
+in `.task/implementation.md` instead of silently skipping this step.
 
-### 5. Generate Self-Review
-
-Create `.task/review.md`:
-
-```
-# Review
-
-## Changes Made
-- `path/to/file`: what changed and why
-
-## Files Changed
-- `path/to/file`
-
-## Self-Identified Risks
-Potential issues, edge cases, or assumptions made during implementation.
-
-## Plan Deviations
-If implementation differs from the approved plan, explain why.
-If none: None.
-
-## Suggested Manual Tests
-- [ ] ...
-- [ ] ...
-
-## Open Questions
-Anything that requires a human decision.
-If none: None.
-```
-
-This file is used as input to the AI web reviewer.
-
-Before finalizing review.md, verify:
-- [ ] Every changed file is listed under Files Changed
-- [ ] Self-Identified Risks is not empty (be honest — there are always edge cases)
-- [ ] Each manual test scenario is specific enough to execute without ambiguity
-- [ ] Open Questions are listed (or explicitly: None)
-- [ ] Plan Deviations are stated (or explicitly: None)
-
-If any item fails, revise review.md before proceeding to step 6.
-
-### 6. Summarize Implementation
+### 5. Write implementation.md
 
 Create `.task/implementation.md`:
 
@@ -187,33 +162,28 @@ Create `.task/implementation.md`:
 # Implementation Summary
 
 ## Changes
-- ...
+- `path/to/file`: change, 1 line
 
-## Behavior
-Describe the resulting behavior.
+## Deviations from Plan
+Any Acceptance Criterion with no plan step, or any plan step not done,
+with why. If none: None.
+
+## Verify
+{command} → pass|fail (+ output if fail)
+
+## Manual Test Checklist
+- [ ] ...
 ```
 
-### 7. Update Test Log
+This file is pasted into the web chat later (alongside `.task/followups.md`,
+in one message limited to 25,000 characters total) — keep it terse.
+**Budget: `.task/implementation.md` must be ≤ 5,000 characters** (check
+with `wc -m .task/implementation.md`; compress if over).
 
-`.task/testlog.md` already has a blank `## Round 0 — initial
-implementation` section. Fill it in by replacing its placeholder
-checkboxes with the Suggested Manual Tests from review.md. Do not append
-a second Round 0 section.
+### 6. Final Report
 
-### 8. Commit
-
-If the target project is not a git repository, skip this step and note
-it in the report.
-
-Otherwise, after the verify gate passes and review.md/implementation.md
-are written:
-
-```
-git add -A && git commit -m "wip(task): round 0 — {slug}"
-git tag -f round-0
-```
-
-`{slug}` is the task slug recorded in `.task/index.md`.
+Report to the human in ≤ ~10 lines, pointing at `.task/implementation.md`
+rather than restating its contents.
 
 ## Rules
 
@@ -226,3 +196,4 @@ git tag -f round-0
 7. Keep implementation simple.
 8. Do not add tests unless requested.
 9. Do not expose secrets.
+10. No commit — this workflow does not touch git.

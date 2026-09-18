@@ -9,10 +9,8 @@ Completed tasks are stored here as subdirectories.
 Example: `001-add-dark-mode/`
 
 Each subdirectory contains the full task workspace snapshot:
-- `request.md`
 - `overview.md`
 - `context.md`
 - `plan.md`
 - `implementation.md`
-- `review.md`
-- `testlog.md`
+- `followups.md`

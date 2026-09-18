@@ -11,11 +11,10 @@
 | Name    | —     |
 | Started | —     |
 | Status  | —     |
-| Branch  | —     |
 
 ---
 
 ## History
 
-| ID | Name | Branch | Date | Status |
-|---|---|---|---|---|
+| ID | Name | Date | Status |
+|---|---|---|---|

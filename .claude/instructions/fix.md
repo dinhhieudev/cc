@@ -1,19 +1,15 @@
 # Fix
 
-Resolve issues for the current fix round.
+Apply a follow-up fix or extra work for the current task.
 
 ## Inputs
 
-Find the latest `## Fix Notes — Round N` in `.task/review.md` that has no
-matching `## Fixes Applied — Round N`. If none exists, STOP and report
+Find the latest `## Follow-up N` in `.task/followups.md` that has no
+matching `## Follow-up N — Applied`. If none exists, STOP and report
 exactly:
 
-> No pending Fix Notes in `.task/review.md`. Main context must append the
-> fix list as `## Fix Notes — Round N` before dispatching fix-agent.
-
-If N > 3, STOP and report that the fix loop is not converging. List what
-is still outstanding from the Round N fix notes and ask the human to
-decide: accept as-is, re-plan, or descope. Do not fix anything.
+> No pending follow-up in `.task/followups.md`. Main context must append
+> the request as `## Follow-up N` before dispatching fix-agent.
 
 Read, in order:
 
@@ -21,58 +17,56 @@ Read, in order:
     .task/overview.md
     .task/plan.md
 
-Then read only:
-- the current round's `## Fix Notes — Round N` section of `.task/review.md`
-- the previous round's `## Fixes Applied — Round N-1` section, if it exists
-
-Do not read the entire review.md history — earlier rounds are irrelevant
-to the current fix.
+Then read only the current `## Follow-up N` section of
+`.task/followups.md`. Do not read the entire follow-up history — earlier
+rounds are irrelevant to the current one.
 
 Then inspect the actual codebase.
 
-Fix notes may combine AI-reviewer findings and the human's manual test
-findings; treat both as findings to address, not just the AI's.
+Follow-up requests may come from the human directly (a quick fix/add
+request) or from AI web review; treat both the same way.
 
 ## Priority
 
 1. Actual codebase
 2. Approved implementation plan
-3. Fix Notes (current round)
+3. Current `## Follow-up N` request
 4. Task overview
 
-**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Fix Notes — Round N`, `## Fixes Applied — Round N`, `## Round N`) — tooling and routing grep these exact strings; `Base branch:` / `Task branch prefix:` / `Language:` lines; `.task/index.md` table field names, status values (`in-progress`, `done`) and `—` placeholders; template labels such as `Result:` / `Issues found:`; file paths; git branch names and slugs; commit messages and tag names; code, identifiers, and code comments.
+**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`in-progress`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.
+
+## Token Discipline
+
+The `## Follow-up N` request is the source of instructions. Read only the
+files it names plus what is strictly needed to apply the change
+correctly — no broad re-exploration. Do not restate the request in your
+report; keep the final report to ~10 lines pointing at `followups.md`.
 
 ## Objective
 
-Fix valid issues with the smallest safe changes.
-The goal is NOT to redesign the feature.
+Resolve the request with the smallest safe change. The goal is NOT to
+redesign the feature.
 
 ## Workflow
 
-### 1. Classify Fix Notes
+### 1. Validate
 
-For every finding, classify it as:
-- Critical / Bug / Requirement violation
-- Plan violation / Architecture issue
-- Edge case / Code quality
-- Optional suggestion (do NOT auto-implement these)
+Verify the request against the actual codebase. If it came from AI web
+review, it may be wrong — do not change code solely because it was
+suggested; confirm the issue actually exists first.
 
-### 2. Validate Findings
-
-Verify every issue against the actual codebase.
-The external AI may be wrong. Do not change code solely because it was suggested.
-
-### 3. Fix
-
-Fix valid issues.
+### 2. Fix
 
 Prefer the smallest change that:
-- resolves the issue
+- resolves the request
 - preserves the approved architecture
 - preserves existing behavior
 - avoids scope expansion
 
-### 4. Re-check
+If the request requires a significant architectural change, stop and
+report it (see Escalation) instead of making a large assumption.
+
+### 3. Re-check
 
 After fixing:
 - inspect changed code
@@ -80,106 +74,63 @@ After fixing:
 - verify no obvious regressions
 - run the `## Verify Command` from `.task/PROJECT.md`
 
+Do not read the whole verify log into context: redirect its output to a
+temp file, then read back only the last ~50 lines plus any lines
+matching an error/warning pattern (e.g. `{command} > /tmp/verify.log
+2>&1; tail -n 50 /tmp/verify.log; grep -iE 'error|failed|warning'
+/tmp/verify.log | head -40`). Record only the pass/fail verdict and the
+essential error lines in the `## Follow-up N — Applied` section.
+
 The Verify Command must pass before proceeding. If it fails, fix the code
-and re-run it, up to 3 attempts total. If it still fails after the third
-attempt, STOP and report exactly:
+and re-run it, up to 3 attempts total.
 
-> The Verify Command (`{verify command}`) still fails after 3 attempts.
->
-> Final failing output:
-> ```
-> {final failing output}
-> ```
->
-> What was changed across attempts:
-> - {summary of attempt 1}
-> - {summary of attempt 2}
-> - {summary of attempt 3}
+If `.task/PROJECT.md` has no Verify Command filled in, say so explicitly
+in the Applied section instead of silently skipping this step.
 
-Do not write `review.md` or `implementation.md`, do not commit, and do
-not tag when stopping this way. If `.task/PROJECT.md` has no Verify
-Command filled in, say so explicitly in the report instead of silently
-skipping this step.
+### 4. Append to followups.md
 
-### 5. Append to review.md
+Whether verify passed or failed after 3 attempts, append
+`## Follow-up N — Applied` at the END of `.task/followups.md` (sections
+stay in order: request N, applied N, request N+1, ...):
 
 ```
-## Fixes Applied — Round N
-- Finding: ...
-  Resolution: ...
+## Follow-up N — Applied
+- `path/to/file`: what changed, 1 line
 
-## Skipped / Disagreed — Round N
-- Finding: ...
-  Reason: ...
-```
+Verify: {command} → pass|fail
 
-### 6. Update Test Log
-
-Append a new round section to `.task/testlog.md`, seeded from any new
-manual tests raised in this round's fixes:
-
-```
-## Round N — fix round N
-
-Result:
-- [ ]
-
-Issues found:
--
-```
-
-### 7. Commit
-
-If the target project is not a git repository, skip this step and note
-it in the report.
-
-Otherwise, after the verify gate passes and review.md is appended:
-
-```
-git add -A && git commit -m "wip(task): round N — {slug}"
-git tag -f round-N
-```
-
-`{slug}` is the task slug recorded in `.task/index.md`.
-
-### 8. Output Delta Summary
-
-After updating review.md, output a compact delta block in your response.
-The user will copy this and paste it into their ongoing AI web conversation.
-
-Format:
-
-```
-─── Paste to AI web (Round N) ───────────────────────────
-Fixes applied in Round N:
-- [brief description of each fix]
-
-Skipped:
-- [any skipped findings and why]
-
-New manual tests needed:
+Manual test:
 - [ ] ...
-─────────────────────────────────────────────────────────
+
+Not done: {only if something was skipped or impossible, with why}
 ```
 
-Remind the human, in your response, to run `bin/diff-for-web.sh N` and paste
-its clipboard contents (the round-{N-1}..round-N delta diff) into the AI web
-conversation alongside this delta summary.
+Keep it terse. **Budget: each `## Follow-up N — Applied` section must be
+≤ 1,200 characters** (check with `wc -m`; compress if over) — it, plus
+`implementation.md` and every other Applied section, is pasted into web
+in one message limited to 25,000 characters total via
+`bin/copy-for-web.sh result`.
 
-Also include:
+## Escalation
 
-```
-Manual verification (do these before next AI web review):
-- [ ] ...
-```
+If the request requires:
+- architectural ambiguity
+- major conflict between the request and the codebase
+- complex concurrency behavior
+- large-scale refactoring
+- security-sensitive behavior
+- a problem that cannot be safely resolved from the request
+
+DO NOT guess. Stop and report what you found, why it's insufficient, and
+what decision is required — but still append `## Follow-up N — Applied`
+noting what was and wasn't done, so the round doesn't silently vanish.
 
 ## Rules
 
 1. Fix valid issues only.
-2. Do not blindly trust the external AI.
+2. Do not blindly trust AI web review.
 3. Do not redesign the feature.
 4. Do not expand scope or perform unrelated refactoring.
 5. Preserve the approved plan unless a change is necessary.
-6. If a finding requires a significant architectural change,
-   stop and report it instead of making a large assumption.
-7. Keep fixes minimal.
+6. Keep fixes minimal.
+7. No commit — this workflow does not touch git.

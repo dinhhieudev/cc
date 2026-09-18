@@ -15,12 +15,12 @@ script only makes sense for a git-tracked project, since it relies on
 .gitignore to keep the installed files out of git status.
 
 If .claude/agents/{context,execute,fix}-agent.md or
-.claude/skills/{overview,save}/ already exist in the target with
-different content, the script aborts before copying anything (see this
-repo's README.md, section "c) Merging when the target project already
-has .claude/agents/ or .claude/skills/"). Re-running against a target
-that already has an identical install is safe (idempotent). With
---upgrade this check is skipped instead — see below.
+.claude/skills/save/ already exist in the target with different
+content, the script aborts before copying anything (see this repo's
+README.md, section "c) Merging when the target project already has
+.claude/agents/ or .claude/skills/"). Re-running against a target that
+already has an identical install is safe (idempotent). With --upgrade
+this check is skipped instead — see below.
 
 Options:
   --lang <en|vi>  Set Language: in the installed .task/PROJECT.md; this
@@ -28,13 +28,14 @@ Options:
                    reports in. Also accepts --lang=<en|vi>. Default: en.
   --upgrade       Update an existing untracked install to the current
                    template version: overwrites the workflow agent,
-                   instruction, and skill files plus bin/copy-for-web.sh
-                   and bin/diff-for-web.sh, and refreshes the
-                   CLAUDE.local.md block. Requires a previous install —
-                   refuses unless the target's CLAUDE.local.md already
-                   has the claude++ workflow marker. Never touches
-                   .task/, except adding a missing Language section to
-                   .task/PROJECT.md.
+                   instruction, skill, and bin/ (incl. bin/lib/) helper
+                   files, removes the retired bin/diff-for-web.sh and
+                   .claude/skills/overview/ if present, and refreshes
+                   the CLAUDE.local.md and .gitignore workflow blocks.
+                   Requires a previous install — refuses unless the
+                   target's CLAUDE.local.md already has the claude++
+                   workflow marker. Never touches .task/, except adding
+                   a missing Language section to .task/PROJECT.md.
   -h, --help      Show this help and exit
 EOF
 }

@@ -56,7 +56,8 @@ if [[ "$UPGRADE" -eq 1 ]]; then
 fi
 
 AGENT_FILES=(context-agent.md execute-agent.md fix-agent.md)
-SKILL_DIRS=(overview save)
+SKILL_DIRS=(save)
+BIN_FILES=(copy-for-web.sh plan-prompt.md result-prompt.md save-plan.sh save-followup.sh lib/copy-for-web-lib.sh lib/save-plan-lib.sh)
 
 # --- Collision check -------------------------------------------------------
 # A path only counts as a real collision if it exists in the target with
@@ -117,10 +118,20 @@ else
   fi
 fi
 
-mkdir -p "$TARGET/bin"
-cp -p "$REPO_ROOT/bin/copy-for-web.sh" "$TARGET/bin/copy-for-web.sh"
-cp -p "$REPO_ROOT/bin/diff-for-web.sh" "$TARGET/bin/diff-for-web.sh"
-COPIED+=("bin/copy-for-web.sh" "bin/diff-for-web.sh")
+mkdir -p "$TARGET/bin/lib"
+for f in "${BIN_FILES[@]}"; do
+  cp -p "$REPO_ROOT/bin/$f" "$TARGET/bin/$f"
+  COPIED+=("bin/$f")
+done
+
+# --upgrade only: drop retired paths from prior installs.
+if [[ "$UPGRADE" -eq 1 && -f "$TARGET/bin/diff-for-web.sh" ]]; then
+  rm -f "$TARGET/bin/diff-for-web.sh"
+  COPIED+=("bin/diff-for-web.sh (removed)")
+fi
+if [[ "$UPGRADE" -eq 1 && -d "$TARGET/.claude/skills/overview" ]]; then
+  rm -rf "$TARGET/.claude/skills/overview"; COPIED+=(".claude/skills/overview/ (removed)")
+fi
 
 # --- CLAUDE.local.md ----------------------------------------------------
 if [[ "$UPGRADE" -eq 1 ]]; then
@@ -141,13 +152,22 @@ GITIGNORE_BODY="CLAUDE.local.md
 .claude/agents/execute-agent.md
 .claude/agents/fix-agent.md
 .claude/instructions/
-.claude/skills/overview/
 .claude/skills/save/
-.task/
-bin/copy-for-web.sh
-bin/diff-for-web.sh"
+.task/"
+for f in "${BIN_FILES[@]}"; do
+  GITIGNORE_BODY="$GITIGNORE_BODY
+bin/$f"
+done
 
-if write_marker_block "$GITIGNORE" "$GITIGNORE_MARKER_BEGIN" "$GITIGNORE_MARKER_END" "$GITIGNORE_BODY"; then
+if [[ "$UPGRADE" -eq 1 ]]; then
+  if [[ -f "$GITIGNORE" ]] && grep -qF "$GITIGNORE_MARKER_BEGIN" "$GITIGNORE"; then
+    replace_marker_block "$GITIGNORE" "$GITIGNORE_MARKER_BEGIN" "$GITIGNORE_MARKER_END" "$GITIGNORE_BODY"
+    COPIED+=(".gitignore (claude++ workflow block refreshed)")
+  else
+    write_marker_block "$GITIGNORE" "$GITIGNORE_MARKER_BEGIN" "$GITIGNORE_MARKER_END" "$GITIGNORE_BODY"
+    COPIED+=(".gitignore (claude++ workflow block)")
+  fi
+elif write_marker_block "$GITIGNORE" "$GITIGNORE_MARKER_BEGIN" "$GITIGNORE_MARKER_END" "$GITIGNORE_BODY"; then
   COPIED+=(".gitignore (claude++ workflow block)")
 else
   SKIPPED+=(".gitignore (already has the claude++ workflow block)")

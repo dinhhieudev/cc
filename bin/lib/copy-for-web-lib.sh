@@ -1,0 +1,177 @@
+# Shared helpers for bin/copy-for-web.sh. Sourced, not executed directly.
+
+# Placeholder files contain nothing but a heading and HTML comment(s); strip
+# comments (including ones spanning multiple lines), heading lines, and
+# blank lines, then check whether anything real is left.
+strip_comments() {
+  awk '
+    BEGIN { incomment = 0 }
+    {
+      line = $0
+      out = ""
+      while (length(line) > 0) {
+        if (incomment) {
+          end = index(line, "-->")
+          if (end == 0) { line = "" }
+          else { line = substr(line, end + 3); incomment = 0 }
+        } else {
+          start = index(line, "<!--")
+          if (start == 0) { out = out line; line = "" }
+          else {
+            out = out substr(line, 1, start - 1)
+            line = substr(line, start + 4)
+            incomment = 1
+          }
+        }
+      }
+      print out
+    }
+  ' "$1"
+}
+
+has_real_content() {
+  strip_comments "$1" | awk '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    { found = 1 }
+    END { exit(found ? 0 : 1) }
+  '
+}
+
+# .task/PROJECT.md ships with its ## Language section pre-filled
+# (Language: en); strip that pre-filled line too before checking for
+# real content.
+project_has_substance() {
+  strip_comments "$1" | awk '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    /^Language:/ { next }
+    { found = 1 }
+    END { exit(found ? 0 : 1) }
+  '
+}
+
+# Reads .task/PROJECT.md's Language: line; anything other than "vi" is "en".
+get_language() {
+  local project_md="$1" line val
+  [[ -f "$project_md" ]] || { echo "en"; return; }
+  line=$(awk '/^Language:/ { print; exit }' "$project_md")
+  [[ -n "$line" ]] || { echo "en"; return; }
+  val="${line#Language:}"
+  val="$(printf '%s' "$val" | awk '{gsub(/^[ \t]+|[ \t]+$/, ""); print}')"
+  if [[ "$val" == "vi" ]]; then echo "vi"; else echo "en"; fi
+}
+
+# Character count, not byte count — multibyte-safe for Vietnamese text.
+count_chars() {
+  printf '%s' "$1" | LC_ALL=en_US.UTF-8 wc -m | tr -d ' '
+}
+
+# Joins its arguments with a blank line between each, trailing newline.
+join_blocks() {
+  local out="" first=1 b
+  for b in "$@"; do
+    if [[ "$first" -eq 1 ]]; then out="$b"; first=0
+    else out="$out
+
+$b"
+    fi
+  done
+  printf '%s\n' "$out"
+}
+
+# Builds the globals BLOCKS[] and LABELS[] from alternating label/content
+# pairs, skipping any pair whose content is empty.
+set_blocks() {
+  BLOCKS=()
+  LABELS=()
+  local label content
+  while [[ $# -gt 0 ]]; do
+    label="$1"; content="$2"; shift 2
+    if [[ -n "$content" ]]; then
+      LABELS+=("$label")
+      BLOCKS+=("$content")
+    fi
+  done
+}
+
+# Prints per-block char counts for the current BLOCKS[]/LABELS[].
+print_breakdown() {
+  local i
+  for (( i = 0; i < ${#LABELS[@]}; i++ )); do
+    echo "  ${LABELS[$i]}: $(count_chars "${BLOCKS[$i]}") chars" >&2
+  done
+}
+
+# True (exit 0) if $1 is an absolute path, or contains a ".." segment.
+is_unsafe_path() {
+  case "$1" in
+    /*|../*|*/..|*/../*|..) return 0 ;;
+  esac
+  return 1
+}
+
+# Extracts attach paths from the "## Files to Attach" section of $1: lines
+# "- path" (optionally followed by " — reason"), one path per output line.
+extract_attach_paths() {
+  awk '
+    /^## Files to Attach/ { infile = 1; next }
+    /^## / { infile = 0 }
+    infile && /^- / {
+      line = $0
+      sub(/^- /, "", line)
+      idx = index(line, " — ")
+      if (idx > 0) { line = substr(line, 1, idx - 1) }
+      gsub(/^[ \t]+|[ \t]+$/, "", line)
+      if (line != "") print line
+    }
+  ' "$1"
+}
+
+# Copies files listed in .task/context.md's "## Files to Attach" section
+# into $1 (the web attachment dir), flattening "/" to "__". Appends
+# flattened names to the global WEB_FILES array and sets the global
+# ATTACH_LIST to a "--- ATTACHED FILES ---" block (or "" if none/none
+# valid). Warns and skips missing or unsafe paths.
+copy_attach_files() {
+  local web_dir="$1" rel_path flat lines=""
+  while IFS= read -r rel_path; do
+    [[ -z "$rel_path" ]] && continue
+    if is_unsafe_path "$rel_path"; then
+      echo "Warning: refusing unsafe attach path '$rel_path' (absolute or contains ..); skipping." >&2
+      continue
+    fi
+    if [[ ! -f "$rel_path" ]]; then
+      echo "Warning: attach path '$rel_path' not found; skipping." >&2
+      continue
+    fi
+    flat="${rel_path//\//__}"
+    cp "$rel_path" "$web_dir/$flat"
+    WEB_FILES+=("$flat")
+    if [[ -z "$lines" ]]; then lines="$flat — $rel_path"
+    else lines="$lines
+$flat — $rel_path"
+    fi
+  done < <(extract_attach_paths .task/context.md)
+  ATTACH_LIST=""
+  if [[ -n "$lines" ]]; then
+    ATTACH_LIST=$'--- ATTACHED FILES ---\n'"$lines"
+  fi
+}
+
+copy_to_clipboard() {
+  local payload="$1"
+  if command -v pbcopy >/dev/null 2>&1; then
+    printf '%s' "$payload" | pbcopy
+    echo "Copied to clipboard (pbcopy)." >&2
+  elif command -v xclip >/dev/null 2>&1; then
+    printf '%s' "$payload" | xclip -selection clipboard
+    echo "Copied to clipboard (xclip)." >&2
+  elif command -v xsel >/dev/null 2>&1; then
+    printf '%s' "$payload" | xsel --clipboard --input
+    echo "Copied to clipboard (xsel)." >&2
+  else
+    echo "No clipboard tool found (pbcopy/xclip/xsel); printing payload to stdout instead." >&2
+    printf '%s\n' "$payload"
+  fi
+}

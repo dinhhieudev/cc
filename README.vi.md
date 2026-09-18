@@ -2,427 +2,296 @@
 
 [English](README.md) | Tiếng Việt
 
-Một quy trình phát triển tính năng kết hợp **Claude Code** với một cuộc hội thoại **AI web** (ChatGPT / Gemini).
+Một quy trình làm việc kết hợp một cuộc hội thoại AI trên web bên ngoài
+(ChatGPT/Gemini — model mạnh hơn, quota riêng) với Claude Code (khám phá
+codebase, triển khai, sửa lỗi). Web chat lo phần suy nghĩ: lập kế hoạch và
+review kết quả. Claude Code thu thập context gọn và thực thi chính xác, trên
+các subagent `sonnet` rẻ, để giữ mức tiêu tốn token của Claude ở mức thấp.
 
-Claude Code phụ trách phần codebase (khám phá code, implementation, fix, git). AI web phụ trách planning và review.
-Bạn review ở từng checkpoint và là người duy nhất chuyển nội dung qua lại giữa hai bên.
+## Vì sao chia như vậy
 
----
+Web chat là bộ não, có quota riêng tách biệt với Claude — nó đảm nhận việc
+lập kế hoạch và review kết quả, phần suy luận nặng. Claude Code là đôi tay:
+nó khám phá codebase, viết context kỹ thuật cô đọng, và thực thi kế hoạch
+đúng theo chữ, qua các subagent rẻ. Không có git diff nào được gửi lên web
+chat, và bản thân workflow không bao giờ đụng vào git — branch và commit
+hoàn toàn do con người quyết định.
 
-## Subagent — vì sao và chạy ở đâu cho mỗi bước
+Mọi thứ gửi lên web chat đều bị giới hạn số ký tự (một tin nhắn web tối đa
+`WEB_CHAR_LIMIT`, mặc định 25.000 ký tự), phần nào không vừa sẽ được tách
+thành file đính kèm trong `.task/web/` để bạn tự đính kèm.
 
-Các bước nặng về công việc codebase chạy trong một **subagent riêng** để main context không bị đầy:
+## Cài đặt vào một dự án
 
-| Bước | Chạy ở | Vì sao |
-|---|---|---|
-| 1 — Overview + tạo branch | Main context | Nhẹ — chỉ đọc prompt, ghi file, tạo git branch |
-| 1 — Context | **context-agent** | Đọc nhiều file codebase → tách riêng |
-| 3 — Execute | **execute-agent** | Implement nhiều thay đổi → tách riêng |
-| 6 — Fix | **fix-agent** | Đọc file + áp fix → tách riêng |
-| 7 — Save | Main context | Nhẹ — chỉ copy file, commit, và reset |
+### Phương án A — tự động, không track git
 
-Bạn không cần làm gì thêm — Claude tự động route đến đúng subagent theo bảng trong `CLAUDE.md`.
-
-Subagent **không thấy được** cuộc hội thoại chính. Bất cứ thứ gì bạn paste
-(plan, fix list) đều được main context ghi ra file trước, sau đó mới dispatch subagent.
-
----
-
-## Cài đặt vào một project
-
-Đây là repo template — copy nó vào project đích trước khi dùng.
-Có hai cách:
-
-- **Option A — tự động, không tracked** (khuyến nghị khi team của project
-  đích chưa thống nhất dùng workflow này, hoặc bạn đơn giản là không muốn
-  các file của workflow xuất hiện trong `git status`/history).
-- **Option B — thủ công, tracked** (các file của workflow, kể cả
-  `.task/`, được commit vào repo đích như mọi file project khác — xem
-  phần Directory Structure ở cuối README này).
-
-### Option A — tự động, không tracked
-
-Từ repo template này:
-
-```bash
-bash bin/install-untracked.sh /path/to/target-project
+```
+bash bin/install-untracked.sh [--lang en|vi] [--upgrade] /path/to/target
 ```
 
-Truyền `--lang en|vi` để set `Language:` trong `.task/PROJECT.md` được cài
-đặt (mặc định `en`); bị bỏ qua kèm ghi chú nếu target đã có `.task/`:
-```bash
-bash bin/install-untracked.sh --lang vi /path/to/target-project
-```
+`<target-project-path>` phải đã tồn tại và là một git repository — script
+dựa vào `.gitignore` để giữ mọi thứ nó cài đặt ngoài git status của dự án
+đích. Nó sao chép:
 
-Yêu cầu target đã là một git repository. Script sẽ:
-- copy `.claude/agents/`, `.claude/instructions/`, `.claude/skills/{overview,save}/`,
-  `.task/` (bỏ qua nếu target đã có sẵn — không bao giờ ghi đè task history hiện có),
-  và `bin/{copy,diff}-for-web.sh` vào target
-- merge bảng Agent Routing + hard rules từ `CLAUDE.md` của repo này
-  vào `<target>/CLAUDE.local.md` thay vì đụng vào `CLAUDE.md` của target
-- append một block đánh dấu marker vào `<target>/.gitignore` bao phủ mọi
-  file vừa copy, để không có file nào bị stage
+- `.claude/agents/{context-agent.md,execute-agent.md,fix-agent.md}`
+- `.claude/instructions/{context.md,execute.md,fix.md}`
+- `.claude/skills/save/`
+- `.task/` — chỉ khi dự án đích chưa có `.task/` (cài mới hoàn toàn; nếu đã
+  có `.task/` thì giữ nguyên không đụng vào)
+- `bin/{copy-for-web.sh,plan-prompt.md,result-prompt.md,save-plan.sh,save-followup.sh}`
+  và `bin/lib/{copy-for-web-lib.sh,save-plan-lib.sh}`
 
-Script sẽ abort trước khi copy bất cứ thứ gì nếu `.claude/agents/{context,execute,fix}-agent.md`
-hoặc `.claude/skills/{overview,save}/` đã tồn tại trong target với nội dung
-khác. (xem Option B, phần c bên dưới, để biết cách xử lý thủ công). An toàn
-khi chạy lại — một lần cài giống hệt cái đã có là no-op, không phải lỗi.
+Nó cũng gộp `CLAUDE.md` của repo này (bảng Agent Routing + các hard rules)
+vào `CLAUDE.local.md` của dự án đích, giữa các marker comment, và thêm một
+block tương ứng vào `.gitignore` của dự án đích để không có gì ở trên làm
+bẩn lịch sử git chung.
 
-Để cập nhật một lần cài untracked trước đó lên phiên bản template hiện tại,
-truyền `--upgrade`:
-```bash
-bash bin/install-untracked.sh --upgrade /path/to/target-project
-```
-Lệnh này yêu cầu `CLAUDE.local.md` của target đã có sẵn marker claude++
-workflow (bằng chứng của một lần cài trước đó bởi script này) — nếu không nó
-sẽ từ chối và yêu cầu chạy lại không kèm `--upgrade`. Với `--upgrade`,
-collision check ở trên bị bỏ qua, và các file agent/instruction/skill của
-workflow cùng `bin/{copy,diff}-for-web.sh` sẽ bị ghi đè bằng phiên bản hiện
-tại của template (mọi chỉnh sửa thủ công lên các file đó sẽ mất), đồng thời
-block marker trong `CLAUDE.local.md` được làm mới. Lệnh này không bao giờ
-đụng vào `.task/`, ngoại trừ việc thêm phần `## Language` còn thiếu vào
-`.task/PROJECT.md` nếu chưa có, hoặc cập nhật dòng `Language:` khi có
-truyền `--lang`.
+Các cờ:
+- `--lang en|vi` (cũng nhận `--lang=en`) — với bản cài mới, đặt `Language:`
+  trong `.task/PROJECT.md` mới (mặc định `en`); bị bỏ qua nếu dự án đích đã
+  có `.task/`, trừ khi dùng `--upgrade`, lúc đó dòng `Language:` vẫn được
+  đồng bộ.
+- `--upgrade` — cập nhật một bản cài không-track-git hiện có lên template
+  hiện tại: ghi đè các file agent/instructions/skill/bin, xoá các đường dẫn
+  đã bị loại bỏ ở bản cài cũ (`bin/diff-for-web.sh`,
+  `.claude/skills/overview/`) nếu còn tồn tại, và làm mới các marker block
+  trong `CLAUDE.local.md`/`.gitignore`. Yêu cầu đã có bản cài trước đó (kiểm
+  tra marker trong `CLAUDE.local.md`) và không bao giờ đụng vào `.task/`
+  ngoại trừ đồng bộ dòng `Language:`.
 
-Sau khi hoàn tất, chuyển thẳng sang điền `.task/PROJECT.md`
-(xem "Thiết lập ban đầu" bên dưới) — các phần a-e bên dưới không áp dụng cho path này.
+Nếu `.claude/agents/*` hoặc `.claude/skills/save/` đã tồn tại ở dự án đích
+với nội dung khác, script sẽ dừng trước khi copy bất cứ gì, trừ khi có
+`--upgrade` — xem Phương án B, mục c) bên dưới.
 
-### Option B — thủ công, tracked
+### Phương án B — thủ công, có track git
+
+Dùng khi bạn muốn commit các file workflow vào repo đích thay vì gitignore
+chúng.
 
 #### a) Cần copy những gì
 
-Từ repo template này vào root của project đích:
+Cùng danh sách file như Phương án A ở trên, cộng thêm toàn bộ `.task/`
+(`PROJECT.md`, `overview.md`, `context.md`, `plan.md`, `implementation.md`,
+`followups.md`, `index.md`, `done/README.md`). Lưu ý `bin/install-untracked.sh`
+và `bin/lib/install-untracked-lib.sh` là bản thân trình cài đặt, không thuộc
+về workflow — đừng copy hai file này.
 
-```
-.claude/agents/
-.claude/instructions/
-.claude/skills/overview/
-.claude/skills/save/
-.task/
-bin/
-CLAUDE.md
-```
+Tự bạn commit các file đã copy vào repo đích; workflow không bao giờ làm
+việc đó thay bạn. Cân nhắc gitignore `.task/web/` ở dự án đích — đây là thư
+mục tạm mà `bin/copy-for-web.sh` dựng lại mỗi lần chạy và `save` xoá khi một
+task được lưu trữ.
 
-Ví dụ:
-```
-cp -R .claude/agents .claude/instructions <target>/.claude/
-cp -R .claude/skills/overview .claude/skills/save <target>/.claude/skills/
-cp -R .task bin CLAUDE.md <target>/
-```
+#### b) Gộp khi dự án đích đã có CLAUDE.md
 
-`.task/done/` cũng phải được copy (nó đi kèm `README.md` riêng). Các file
-`.task/*.md` khác đến dưới dạng template rỗng — đó là điều bình thường; chỉ
-`.task/PROJECT.md` cần được điền tay.
+Dán bảng Agent Routing và mục "Hard rules for main context" của repo này
+vào `CLAUDE.md` của dự án đích (hoặc thêm chúng như một mục mới).
 
-#### b) Merge khi project đích đã có CLAUDE.md
+#### c) Gộp khi dự án đích đã có `.claude/agents/` hoặc `.claude/skills/`
 
-Đừng ghi đè. Merge nội dung CLAUDE.md của template vào CLAUDE.md hiện có
-của project, giữ nguyên toàn bộ:
-- bảng `## Agent Routing` (mọi dòng)
-- đoạn `N for ## Fix Notes — Round N` ngay dưới bảng
-- danh sách `## Hard rules for main context` (cả 6 rule)
+Đổi tên một bên (các file `context-agent`/`execute-agent`/`fix-agent` hoặc
+`save` của workflow này, hoặc các file đã có sẵn ở dự án đích) để tên không
+trùng nhau, rồi cập nhật mọi nơi tham chiếu tới tên cũ.
 
-Lưu ý: CLAUDE.md của template này **không** dùng kiểu import
-`@.task/PROJECT.md` — PROJECT.md được từng file `.claude/instructions/*.md`
-đọc trực tiếp, nên nó chỉ load đúng một lần cho mỗi agent. Đừng thêm kiểu
-import đó khi merge.
+#### d) Kiểm tra bản cài
 
-#### c) Merge khi project đích đã có `.claude/agents/` hoặc `.claude/skills/`
-
-Tên không được trùng: `context-agent`, `execute-agent`, `fix-agent`,
-`overview`, `save`. Nếu tên nào đã tồn tại trong project đích, đổi tên một
-bên và cập nhật mọi chỗ tham chiếu (bảng `Agent Routing` trong CLAUDE.md, và
-pointer tới `.claude/instructions/*.md` trong file agent tương ứng).
-
-#### d) Commit `.task/` vào project đích
-
-`.task/` nên được commit vào repo của project đích — xem phần Directory
-Structure ở cuối README này để biết chi tiết.
-
-#### e) Verify việc cài đặt
-
-Từ root của project đích:
-- `bash bin/copy-for-web.sh --help` phải in usage.
-- `bash bin/copy-for-web.sh` (khi chưa có task nào) phải fail sạch sẽ, báo
-  rằng `.task/overview.md` vẫn còn là placeholder — điều này chứng minh
-  script đang trỏ đúng vào `.task/` của project đích.
-
----
+Từ thư mục gốc dự án đích: `bin/copy-for-web.sh --help` phải in ra hướng
+dẫn sử dụng, và `.task/PROJECT.md` phải tồn tại, sẵn sàng để điền.
 
 ## Thiết lập ban đầu (chỉ một lần)
 
-Điền vào `.task/PROJECT.md` — context cấp project mà không agent hay skill nào ghi đè:
+Điền vào `.task/PROJECT.md`: `## Project`, `## Tech Stack`,
+`## Architecture Overview`, `## Key Conventions`, `## Source Layout`,
+`## Important Files`, `## Known Constraints`, và `## Verify Command` — lệnh
+shell chính xác (`npm run typecheck`, `swift build`, ...) mà execute-agent
+và fix-agent phải chạy trước khi báo cáo hoàn thành. `## Language` mặc định
+sẵn `Language: en`; đổi thành `vi` để xuất tiếng Việt. File này không bao
+giờ bị agent hay skill nào sửa — bạn tự quản lý nó.
 
-- `Tech Stack`, `Architecture Overview`, `Key Conventions`, `Source Layout`,
-  `Important Files`, `Known Constraints` — như bình thường.
-- `## Verify Command` — một lệnh shell chứng minh build/typecheck sạch
-  (ví dụ `npm run typecheck`, `swift build`). execute-agent và fix-agent
-  **bắt buộc** phải chạy lệnh này trước khi báo done.
-- `## Git` — `Base branch` (mặc định `main`) và `Task branch prefix`
-  (mặc định `task/`).
-- `## Language` — `Language: en` (mặc định) hoặc `vi`. Điều khiển ngôn ngữ
-  văn xuôi mà agent dùng để viết trong các file `.task/*.md` và báo cáo
-  cuối cùng. Các heading mà tooling grep (`## Fix Notes — Round N`, v.v.),
-  đường dẫn file, tên branch, commit message, và code luôn giữ English bất kể giá trị này.
+Khi `Language: vi`, `bin/copy-for-web.sh` nối thêm một dòng vào prompt web
+(cả payload lập kế hoạch lẫn payload review kết quả) yêu cầu AI web trả lời
+bằng tiếng Việt: "Write your response in Vietnamese (keep the ## headings
+and file paths in English)."
 
-`.task/context.md` được **tự sinh cho mỗi task** (do context-agent ghi mỗi
-lần) — **không bao giờ tự sửa tay file này**, mọi thay đổi sẽ bị ghi đè ở
-task tiếp theo.
+## Bước 1 — Claude Code: task overview + context
 
----
+Gõ `task: <yêu cầu>` (bí danh: `skill overview + context: <yêu cầu>`, hoặc
+bất kỳ yêu cầu task mới nào bằng ngôn ngữ tự nhiên — tiếng Anh cũng dùng
+được). Main context ghi yêu cầu của bạn nguyên văn vào `.task/overview.md`
+dưới `## Original Request`, sau đó dispatch **context-agent**.
 
-## Bước 1 — Claude Code: phân tích yêu cầu + tạo branch
+context-agent đọc `.task/PROJECT.md` và `.task/overview.md`, khám phá
+codebase (qua CodeGraph nếu dự án đích có `.codegraph/`), rồi viết:
 
-**Prompt:**
-```
-skill overview + context: [mô tả yêu cầu, có thể kèm tên file hoặc code paste vào]
-```
+- `.task/overview.md` — spec đầy đủ (`## Goal`, `## Problem`, `## Scope`,
+  `## Out of Scope`, `## Requirements`, `## Constraints`,
+  `## Acceptance Criteria`, `## Ambiguities`, `## Notes`), giới hạn ≤ 4.000
+  ký tự
+- `.task/context.md` — context kỹ thuật cho người lập kế hoạch (`## Relevant
+  Architecture`, `## Relevant Files`, `## Existing Patterns`,
+  `## Data Flow`, `## Dependencies`, `## Current Behavior`,
+  `## Important Constraints`, `## Potential Risk Areas`,
+  `## Relevant Code Snippets`, `## Unknowns`, `## Files to Attach` — tối đa
+  10 đường dẫn), giới hạn ≤ 12.000 ký tự
+- `.task/index.md` — mục Active Task (ID, Name, Started, Status =
+  `in-progress`)
 
-**Ví dụ:**
-```
-skill overview + context: sửa tính năng login, cần lưu token và
-refresh token vào keychain sau khi API login thành công @login.dart
-```
+## Bước 2 — AI web: lập kế hoạch
 
-Claude chạy overview trong main context → tạo task branch (`{prefix}{id}-{slug}`
-từ base branch trong `.task/PROJECT.md`) → tự gọi subagent **context-agent**
-để khám phá codebase. Nếu working tree đang dirty, Claude dừng lại và yêu
-cầu bạn commit/stash trước. Task cũng phải bắt đầu từ base branch được cấu
-hình trong `.task/PROJECT.md` — nếu HEAD đang ở branch khác, Claude dừng
-lại và yêu cầu bạn chuyển về base branch trước.
-
-**Output:** `.task/overview.md` + `.task/context.md`, task branch được tạo, `.task/index.md` được cập nhật với branch mới.
-
-**Verify trước khi sang Bước 2:**
-- overview.md: đọc xong phần Goal, bạn có xác định được khi nào task "xong" không?
-- context.md: data flow có khớp với kiến trúc thực tế không? Có phần Unknowns không?
-
----
-
-## Bước 2 — AI web: planning
-
-Mở một **cuộc hội thoại AI web mới**. Giữ cuộc hội thoại này mở trong suốt task.
-
-Chạy `bin/copy-for-web.sh` (không tham số) — nó copy nội dung của
-`PROJECT.md` + `overview.md` + `context.md` vào clipboard. Paste vào AI web kèm theo:
+Chạy:
 
 ```
-Dưới đây là project context, task overview, và technical context của một codebase.
-
-[paste clipboard]
-
-Hãy tạo một implementation plan chi tiết, từng bước.
-Chỉ rõ chính xác file nào cần thay đổi và thay đổi là gì.
-Chưa cần code — chỉ cần plan.
+bin/copy-for-web.sh [--split]
 ```
 
-Review và tinh chỉnh trong AI web đến khi bạn hài lòng. Copy plan cuối cùng.
+Không có tham số, nó dựng payload lập kế hoạch — `.task/PROJECT.md` (nếu có
+nội dung thực ngoài dòng Language), `.task/overview.md`, `.task/context.md`,
+kèm prefix là `bin/plan-prompt.md` — và copy vào clipboard. Nếu payload vượt
+`WEB_CHAR_LIMIT` (mặc định 25.000, có thể override qua biến môi trường),
+CONTEXT bị tách thành file đính kèm trong `.task/web/` trước, rồi tới
+PROJECT nếu vẫn còn vượt; `--split` ép cả hai thành file đính kèm bất kể
+kích thước. Một cảnh báo (kèm bảng chi tiết kích thước từng phần) sẽ in ra
+khi đạt 85% giới hạn.
 
-**Verify plan trước khi sang Bước 3:**
-- Plan có nêu tên file cụ thể cho từng bước không?
-- Plan có giải quyết mọi Acceptance Criterion trong overview.md không?
+Dán nội dung clipboard vào một cuộc hội thoại web **mới**, và đính kèm mọi
+file mà `.task/web/` liệt kê. `bin/plan-prompt.md` yêu cầu model web hỏi lại
+bạn trước nếu có điều gì mơ hồ quan trọng, nếu không thì tạo một kế hoạch
+với sáu mục cố định: `## Summary`, `## Decisions to Review`,
+`## AC Coverage`, `## Steps` (bảng `| # | File | Change | Notes |`),
+`## Out of Scope`, `## Open Questions`. Bạn chỉ cần review ba mục đầu —
+Summary, Decisions to Review, AC Coverage.
 
----
+## Bước 3 — Claude Code: execute
 
-## Bước 3 — Claude Code: implement
-
-**Khuyến nghị (tiết kiệm token):** copy plan từ AI web, sau đó từ root
-project chạy:
-```
-pbpaste > .task/plan.md
-```
-(`pbpaste` dành cho macOS; trên Linux dùng `xclip -o > .task/plan.md` hoặc
-`xsel -b > .task/plan.md`)
-
-Sau đó chỉ cần nói với Claude:
-```
-plan đã lưu vào .task/plan.md, chạy execute
-```
-(dạng tiếng Anh `plan saved to .task/plan.md, run execute` vẫn hoạt động)
-
-Main context không cần load toàn bộ plan vào cuộc hội thoại — chỉ
-execute-agent đọc file này, tiết kiệm token.
-
-**Fallback** (khi route clipboard không tiện) — paste trực tiếp, main
-context sẽ ghi nó vào `.task/plan.md` giúp bạn:
-```
-triển khai plan này:
-[paste plan từ AI web]
-```
-(dạng tiếng Anh `implement this plan: ...` vẫn hoạt động)
-
-Dù theo cách nào, một khi `.task/plan.md` có plan, Claude sẽ gọi subagent
-**execute-agent** để implement. execute-agent chạy Verify Command từ
-`.task/PROJECT.md`, phải pass trước khi review.md được ghi — nếu không
-pass, nó sẽ thử fix lại, hoặc dừng và báo cáo lỗi nếu không tự fix được.
-
-**Output:** code thay đổi + `.task/review.md` (self-review) + `.task/testlog.md`
-(scaffold Round 0) + một commit `round-0` (tag `round-0`) trên task branch.
-
-**Nếu execute-agent dừng lại và escalate:** thay vì implement, agent có thể
-dừng lại và báo cáo "phát hiện gì / vì sao plan chưa đủ / cần quyết định
-gì" (ví dụ xung đột kiến trúc, hoặc plan mâu thuẫn với codebase thực tế).
-Paste báo cáo đó vào cùng cuộc hội thoại AI web đang mở, yêu cầu nó revise
-plan để giải quyết quyết định đó, rồi chạy lại Bước 3 với plan đã revise.
-
----
-
-## Bước 4 — Test thủ công
-
-Build app và test thật. Ghi kết quả vào `.task/testlog.md`
-(scaffold `## Round 0` đã có sẵn — tick checklist và ghi chú vấn đề tìm thấy nếu có).
-
----
-
-## Bước 5 — AI web: review
-
-Quay lại **cuộc hội thoại AI web đang mở** (đã có plan từ Bước 2).
-
-Chạy `bin/diff-for-web.sh` (không tham số) để copy toàn bộ diff của task
-branch so với base branch vào clipboard.
-Paste vào AI web kèm `.task/review.md`:
+Copy kế hoạch từ web chat, rồi chạy:
 
 ```
-Đây là diff thực tế và self-review của Claude sau khi implement.
-
---- DIFF ---
-[paste clipboard từ bin/diff-for-web.sh]
-
---- REVIEW ---
-[paste toàn bộ nội dung .task/review.md]
-
---- MANUAL TEST RESULTS (if any) ---
-[paste phần liên quan của .task/testlog.md, hoặc mô tả vấn đề tìm thấy]
-
-So sánh diff với plan đã thống nhất ở trên: implementation có đúng, đủ, và
-đúng phạm vi không? Liệt kê những gì cần fix. Nếu mọi thứ ổn, hãy nói rõ là
-không cần fix gì thêm.
+bin/save-plan.sh [--force]
 ```
 
-Plan đã có sẵn trong cuộc hội thoại này từ Bước 2, nên AI web dùng diff để
-kiểm tra plan-vs-code — điều mà chỉ self-review không chứng minh được. Diff
-là **bằng chứng**, review.md là **bản đồ** — dùng cả hai.
+Nó ghi nội dung clipboard vào `.task/plan.md`, và cảnh báo (không chặn) nếu
+thiếu heading bắt buộc, còn `## Open Questions` chưa giải quyết, hoặc
+`## Steps` tham chiếu đường dẫn file không tồn tại mà không được đánh dấu là
+mới. Nó từ chối ghi đè `plan.md` đã có nội dung trừ khi có `--force`.
 
-**Nếu AI web nói không cần fix gì → sang Bước 7.**
-**Nếu AI web trả về fix list → sang Bước 6.**
+Sau đó bảo Claude `chạy execute` (hoặc `run execute`) — main context
+dispatch thẳng **execute-agent** mà không tự đọc `plan.md`. Đường dẫn dự
+phòng: dán thẳng kế hoạch vào cuộc hội thoại với `triển khai plan này:
+<plan>` (hoặc `implement this plan: ...`), main context sẽ ghi nó vào
+`.task/plan.md` trước.
 
----
+execute-agent đọc `PROJECT.md`, `overview.md`, `plan.md`, đối chiếu
+`## AC Coverage` với từng Acceptance Criterion, và dừng lại để báo cáo thay
+vì đoán mò khi gặp một mục `## Open Questions` gây tắc nghẽn, xung đột kiến
+trúc, hoặc bất cứ gì nhạy cảm về bảo mật. Nó triển khai `## Steps` theo thứ
+tự, chạy `## Verify Command` từ `PROJECT.md` (tối đa 3 lần thử), và viết
+`.task/implementation.md` (`## Changes`, `## Deviations from Plan`,
+`## Verify`, `## Manual Test Checklist`), giới hạn ≤ 5.000 ký tự. Không
+commit — workflow không đụng vào git.
 
-## Bước 6 — Claude Code: fix (lặp tối đa 3 round)
+## Bước 4 — kiểm thử và sửa (lặp lại, không giới hạn vòng)
 
-**Khuyến nghị (tiết kiệm token):** copy fix list từ AI web, sau đó từ root
-project chạy (thay `N` bằng số round thực tế):
-```
-printf '\n## Fix Notes — Round N\n\n' >> .task/review.md && pbpaste >> .task/review.md
-```
-`N` = (số heading `## Fix Notes — Round` đã có trong
-`.task/review.md`) + 1 — cùng quy tắc main context dùng.
+Kiểm thử thủ công. Hai đường, lặp lại bao nhiêu lần tuỳ cần:
 
-Sau đó chỉ cần nói với Claude (thay `N` bằng số round thực tế):
-```
-fix notes round N đã lưu, chạy fix
-```
-(dạng tiếng Anh `fix notes round N saved, run fix` vẫn hoạt động)
+**Sửa nhỏ/rõ ràng** — nhắn thẳng cho Claude: `làm thêm: ...` / `fix: ...` /
+`add: ...` (hoặc bất kỳ yêu cầu follow-up nào). Main context nối
+`## Follow-up N` (yêu cầu của bạn, nguyên văn) vào `.task/followups.md`, rồi
+dispatch **fix-agent**.
 
-**Fallback** (khi route clipboard không tiện) — paste trực tiếp, main
-context sẽ append nó vào `.task/review.md` giúp bạn:
-```
-sửa theo danh sách này:
-[paste fix list từ AI web]
-```
-(dạng tiếng Anh `fix this list: ...` vẫn hoạt động)
+**Cần suy nghĩ thật sự** — chạy `bin/copy-for-web.sh result` trong *cùng*
+web chat. Nó dựng payload từ `.task/implementation.md` và
+`.task/followups.md` (nếu có nội dung), kèm prefix `bin/result-prompt.md`,
+yêu cầu model web liệt kê các vấn đề so với plan/AC và, nếu cần follow-up,
+xuất ra hướng dẫn follow-up chỉ-phần-thân sẵn để dán. Bạn có thể thêm kết
+quả kiểm thử thủ công của riêng mình vào bên dưới báo cáo trước khi gửi.
+Payload quá lớn sẽ tách FOLLOW-UPS rồi tới IMPLEMENTATION thành file đính
+kèm trong `.task/web/`. Sau đó chạy `bin/save-followup.sh` (không tham số)
+để nối clipboard thành `## Follow-up N` tiếp theo — nó cảnh báo nếu cái
+trước chưa được đánh dấu Applied. Rồi bảo Claude `chạy fix` (hoặc
+`run fix`) — main context dispatch **fix-agent** mà không tự đọc
+`followups.md`.
 
-Dù theo cách nào, một khi `## Fix Notes — Round N` xuất hiện trong
-`.task/review.md`, Claude sẽ gọi subagent **fix-agent** để áp fix.
-fix-agent cũng chạy Verify Command trước khi ghi kết quả.
+fix-agent chỉ đọc mục `## Follow-up N` hiện tại (không đọc các vòng trước),
+áp dụng thay đổi an toàn nhỏ nhất, chạy lại Verify Command (tối đa 3 lần
+thử), và nối `## Follow-up N — Applied` — giới hạn ≤ 1.200 ký tự mỗi mục.
 
-**Output:** code fix + `## Fixes Applied — Round N` trong review.md +
-scaffold `## Round N` mới trong testlog.md + một commit/tag `round-N` +
-một **delta summary** ở cuối response.
+## Bước 5 — Claude Code: lưu task
 
-**Vòng lặp:**
-1. Test thủ công lại (Bước 4), ghi round tương ứng vào `.task/testlog.md`.
-2. Chạy `bin/diff-for-web.sh N` — copy delta diff của round N (`round-{N-1}..round-N`).
-   Nếu delta diff quá lớn, thu hẹp bằng `bin/diff-for-web.sh N --files path/to/File.swift`.
-3. Quay lại AI web (cùng cuộc hội thoại) và paste **delta summary** + **delta diff** thay vì toàn bộ review.md.
-4. Lặp lại Bước 6 → 4 → 5 đến khi AI web xác nhận không còn cần fix gì.
+Gõ `lưu task` (hoặc `save task`). Skill `save`:
 
-**Khi nào dừng:** vòng fix bị giới hạn tối đa **3 round**. Nếu round thứ 4
-được yêu cầu, Claude dừng lại và yêu cầu bạn quyết định: chấp nhận nguyên
-trạng, quay lại planning, hoặc thu hẹp phạm vi.
+- chặn lại nếu có `## Follow-up N` nào chưa có `## Follow-up N — Applied`
+  tương ứng, trừ khi bạn xác nhận rõ ràng muốn lưu trữ trạng thái dở dang
+- xác định id/slug của task từ mục Active Task trong `.task/index.md` (hoặc
+  tự suy ra từ Goal trong `overview.md` cộng số thư mục con trong
+  `.task/done/`)
+- tiếp tục một lần lưu trữ bị gián đoạn nếu `.task/done/{id}-{slug}/` đã
+  tồn tại với cùng Goal
+- copy `overview.md`, `context.md`, `plan.md`, `implementation.md`,
+  `followups.md` vào `.task/done/{id}-{slug}/`
+- reset năm file đó về template rỗng và xoá `.task/web/`
+- không bao giờ đụng vào `.task/PROJECT.md`
+- xoá mục Active Task trong `index.md` và thêm một dòng History
 
----
+Không commit — bạn tự quản lý git; workflow không bao giờ stage hay commit
+bất cứ gì.
 
-## Bước 7 — Claude Code: lưu task
+## Giới hạn ký tự
 
-Chỉ làm bước này khi AI web đã xác nhận không còn cần fix gì.
+Một tin nhắn web bị giới hạn `WEB_CHAR_LIMIT` (25.000 ký tự, override qua
+biến môi trường):
 
-**Prompt:**
-```
-lưu task
-```
-(dạng tiếng Anh `save task` vẫn hoạt động)
+| File / phần | Giới hạn |
+|---|---|
+| `.task/overview.md` | ≤ 4.000 ký tự |
+| `.task/context.md` | ≤ 12.000 ký tự |
+| `.task/implementation.md` | ≤ 5.000 ký tự |
+| mỗi mục `## Follow-up N — Applied` | ≤ 1.200 ký tự |
+| `.task/PROJECT.md` (điển hình) | ~5.000 ký tự |
+| planning prompt (`bin/plan-prompt.md`) | ~2.500 ký tự |
+| **Tổng mỗi tin nhắn web** | **25.000 ký tự** |
 
-Claude commit mọi thay đổi còn lại, archive toàn bộ file task vào
-`.task/done/`, reset workspace (trừ `.task/PROJECT.md` — không bao giờ bị đụng tới),
-và cập nhật `.task/index.md`.
-
-Save **không tự squash hay tự merge** — đó là quyết định của bạn. Claude
-báo cáo tên branch và gợi ý lệnh:
-
-```
-git checkout {base} && git merge --squash {branch} && git commit
-```
-
-Bạn nên merge branch này về base branch **trước khi bắt đầu task tiếp
-theo** — Bước 1 của task tiếp theo chỉ chạy khi HEAD đang ở base branch
-(overview sẽ dừng lại nếu không).
-
-ID không còn bị trùng nữa, vì `overview` giờ quét cả các task branch hiện
-có (kể cả chưa merge), không chỉ `.task/done/`.
-
----
+Phần nào không vừa sẽ được `bin/copy-for-web.sh` tách thành file đính kèm
+trong `.task/web/` — tự bạn đính kèm chúng trong web chat.
 
 ## Cấu trúc thư mục
 
 ```
-README.md              File này (tiếng Anh)
-README.vi.md           Bản dịch tiếng Việt của file này
-CLAUDE.md              Bảng agent routing + hard rules cho main context
-
-bin/
-  install-untracked.sh Cài workflow này vào project khác, gitignored (Option A)
-  lib/
-    install-untracked-lib.sh Các hàm helper cho install-untracked.sh
-  copy-for-web.sh       Copy PROJECT.md + overview.md + context.md vào clipboard (Bước 2)
-  diff-for-web.sh       Copy git diff vào clipboard (Bước 5/6)
-
-.claude/
-  agents/
-    context-agent.md   Khám phá codebase (subagent)
-    execute-agent.md   Implement code (subagent)
-    fix-agent.md       Fix bug (subagent)
-  instructions/
-    context.md         Hướng dẫn cho context-agent (không phải skill)
-    execute.md         Hướng dẫn cho execute-agent (không phải skill)
-    fix.md             Hướng dẫn cho fix-agent (không phải skill)
-  skills/
-    overview/          Phân tích yêu cầu + tạo branch (main context)
-    save/              Archive task (main context)
-
-.task/
-  PROJECT.md            Project context + Verify Command + Git config (điền một lần, không agent nào ghi đè)
-  index.md              Danh sách mọi task
-  request.md            Yêu cầu gốc (tạo bởi skill overview)
-  overview.md           Task spec (tạo bởi skill overview)
-  context.md            Technical context riêng cho từng task (tạo bởi context-agent, sinh lại mỗi task)
-  plan.md               Implementation plan (từ AI web)
-  implementation.md     Tóm tắt implementation
-  review.md             Self-review + lịch sử fix theo từng round
-  testlog.md            Kết quả test thủ công theo từng round
-  done/                 Archive các task đã hoàn thành
+.
+├── CLAUDE.md
+├── README.md
+├── README.vi.md
+├── bin/
+│   ├── copy-for-web.sh
+│   ├── install-untracked.sh
+│   ├── plan-prompt.md
+│   ├── result-prompt.md
+│   ├── save-followup.sh
+│   ├── save-plan.sh
+│   └── lib/
+│       ├── copy-for-web-lib.sh
+│       ├── install-untracked-lib.sh
+│       └── save-plan-lib.sh
+├── .claude/
+│   ├── agents/
+│   │   ├── context-agent.md
+│   │   ├── execute-agent.md
+│   │   └── fix-agent.md
+│   ├── instructions/
+│   │   ├── context.md
+│   │   ├── execute.md
+│   │   └── fix.md
+│   └── skills/
+│       └── save/
+│           └── SKILL.md
+└── .task/
+    ├── PROJECT.md
+    ├── overview.md
+    ├── context.md
+    ├── plan.md
+    ├── implementation.md
+    ├── followups.md
+    ├── index.md
+    ├── web/            (tạm — dựng lại mỗi lần chạy copy-for-web.sh, bị xoá bởi save)
+    └── done/
+        ├── README.md
+        └── {id}-{slug}/
 ```
-
-`.task/` **nên được commit** vào repo của project nếu cài qua Option B — đó
-là bản ghi của task. Nếu cài qua Option A, `.task/` bị gitignore có chủ đích thay vào đó.
-`bin/diff-for-web.sh` tự động loại trừ `.task/` khỏi diff để AI web chỉ thấy code thật.
