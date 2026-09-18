@@ -6,10 +6,26 @@ source "$SCRIPT_DIR/lib/copy-for-web-lib.sh"
 
 MAX_BYTES=204800 # 200 KB
 
+# True (exit 0) if $1's basename looks like a secret/credential file.
+# Pattern-based only — does not inspect file contents.
+is_secret_file() {
+  local base lower
+  base="$(basename "$1")"
+  lower="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')"
+  case "$lower" in
+    .env|.env.*) return 0 ;;
+    *.pem|*.key|*.p12|*.pfx|*.jks|*.keystore) return 0 ;;
+    id_rsa|id_ed25519|id_dsa|id_ecdsa) return 0 ;;
+    .npmrc|.netrc|.git-credentials|credentials) return 0 ;;
+    *secret*|*credential*|*password*|*apikey*|*api_key*|*token*) return 0 ;;
+  esac
+  return 1
+}
+
 usage() {
   cat <<'EOF'
-Usage: attach.sh <path> [<path>...]
-       attach.sh -
+Usage: attach.sh [--force-secret] <path> [<path>...]
+       attach.sh [--force-secret] -
 
 Copies the named project files into .task/web/ (flattened: "/" becomes
 "__"), so you can attach them in the web chat after the web planner
@@ -19,18 +35,31 @@ Does NOT clear .task/web/ first — it belongs to the preceding
 copy-for-web.sh run; attach.sh only adds to it.
 
 Refuses absolute paths and any path containing "..". Warns and skips
-paths that don't exist, are directories, or are over 200 KB. Prints
-each "path -> flattened name" and the total character count of
-everything now in .task/web/.
+paths that don't exist, are directories, or are over 200 KB. Also
+warns and skips paths whose basename looks like a secret/credential
+file (.env*, *.pem/*.key/*.p12/*.pfx/*.jks/*.keystore, private SSH
+keys, .npmrc/.netrc/.git-credentials, or names containing
+secret/credential/password/apikey/api_key/token) — this is a filename
+pattern check, not a content scanner; pass --force-secret to copy such
+files anyway. Prints each "path -> flattened name" and the total
+character count of everything now in .task/web/.
 
 "-" reads newline-separated paths from stdin instead of argv.
 
 Must be run from the root of a project that has a .task/ directory.
 
 Options:
-  -h, --help    Show this help and exit
+  --force-secret  Copy files that match the secret-file pattern
+                   instead of refusing them
+  -h, --help      Show this help and exit
 EOF
 }
+
+FORCE_SECRET=0
+if [[ "${1:-}" == "--force-secret" ]]; then
+  FORCE_SECRET=1
+  shift
+fi
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
@@ -72,6 +101,14 @@ for p in "${PATHS[@]}"; do
   if [[ -d "$p" ]]; then
     echo "Warning: '$p' is a directory; skipping." >&2
     continue
+  fi
+  if is_secret_file "$p"; then
+    if [[ "$FORCE_SECRET" -eq 1 ]]; then
+      echo "Copying likely secret file '$p' (--force-secret given)." >&2
+    else
+      echo "Warning: refusing likely secret file '$p' (matches pattern); skipping. Use --force-secret to override if you're sure." >&2
+      continue
+    fi
   fi
   SIZE=$(wc -c < "$p" | tr -d ' ')
   if [[ "$SIZE" -gt "$MAX_BYTES" ]]; then
