@@ -22,6 +22,20 @@ message is capped at `WEB_CHAR_LIMIT`, 25,000 characters by default), and
 whatever doesn't fit is split into attachment files under `.task/web/` that
 you attach manually.
 
+**Normal vs `--lean` (Step 1):**
+
+| Codebase | Path |
+|---|---|
+| Large or unfamiliar | Normal (`task: ...`) — richer `context.md` for the planner |
+| Small, or you already know the area | `--lean` (`task (lean): ...`) — saves Claude tokens, costs one extra round trip |
+
+**Direct fix vs web round-trip (Step 4 follow-ups):**
+
+| Follow-up | Path |
+|---|---|
+| Obvious small fix you already know how to describe | Prompt Claude directly: `fix: ...` |
+| Unclear bug, or a gap in the plan that needs judgment | Route through web: `bin/copy-for-web.sh result` |
+
 ## Installing into a project
 
 ### Option A — automated, untracked
@@ -122,6 +136,9 @@ new-task request in plain language). Main context writes your request
 verbatim into `.task/overview.md` under `## Original Request`, then
 dispatches **context-agent**.
 
+Example: `task: add a dark-mode toggle to the settings screen`. (This
+example carries through Steps 1-5 below.)
+
 context-agent reads `.task/PROJECT.md` and `.task/overview.md`, explores the
 codebase (via CodeGraph if the target has `.codegraph/`), and writes:
 
@@ -174,6 +191,24 @@ fixed sections: `## Summary`, `## Decisions to Review`, `## AC Coverage`,
 `## Open Questions`. You only need to review the first three sections —
 Summary, Decisions to Review, AC Coverage.
 
+For the dark-mode example, a plausible (illustrative, not literal-format)
+excerpt of what comes back:
+
+```
+## Decisions to Review
+- Persist the toggle via SharedPreferences, not a new state-management
+  provider — avoids adding a dependency for a single boolean.
+
+## AC Coverage
+- AC1 (toggle visible in Settings): Step 1
+- AC2 (persists across restarts): Step 1
+
+## Steps
+| # | File | Change | Notes |
+|---|---|---|---|
+| 1 | lib/settings/settings_screen.dart | Add dark-mode Switch, wire to ThemeProvider | persists via SharedPreferences |
+```
+
 **Lean alternative** — after `bin/copy-for-web.sh --lean` (see Step 1), the payload swaps
 `.task/context.md` for a FILE TREE of the project (`git ls-files`, or a pruned `find`
 outside a git repo) and adds `bin/lean-note.md` to the prompt, asking the web planner to
@@ -185,6 +220,26 @@ continue at Step 3 unchanged. An oversized FILE TREE degrades: noisy files (lock
 images, `*.min.*`, `.task/**`) drop first, then it collapses to per-directory
 `dir/ (N files)` counts, then the full tree is attached as `.task/web/file-tree.txt`;
 `--split` forces the FILE TREE and PROJECT straight to attachments.
+
+Worked round-trip: `task (lean): add a dark-mode toggle to the settings
+screen`, then `bin/copy-for-web.sh --lean`. The web might reply with an
+illustrative (fake) list like:
+
+```
+1. lib/settings/settings_screen.dart
+2. lib/theme/theme_provider.dart
+```
+
+Then `bin/attach.sh lib/settings/settings_screen.dart lib/theme/theme_provider.dart`
+prints:
+
+```
+lib/settings/settings_screen.dart -> lib__settings__settings_screen.dart
+lib/theme/theme_provider.dart -> lib__theme__theme_provider.dart
+Total chars now in .task/web: 3214
+```
+
+Attach both files in the web UI, ask for the plan, and continue at Step 3.
 
 ## Step 3 — Claude Code: execute
 
@@ -226,6 +281,9 @@ writes `.task/implementation.md` (`## Changes`, `## Deviations from Plan`,
 `## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`), budget
 ≤ 5,000 characters. No commit — the workflow doesn't touch git.
 
+For the dark-mode example, an illustrative `## Changes` line:
+`- lib/settings/settings_screen.dart: added dark-mode toggle, persists via SharedPreferences`
+
 ## Step 4 — test and fix (loop, no round limit)
 
 Test manually. Two routes, repeat as many times as needed:
@@ -234,6 +292,10 @@ Test manually. Two routes, repeat as many times as needed:
 `làm thêm: ...` (or any follow-up request). Main context appends
 `## Follow-up N` (your request, verbatim) to `.task/followups.md`, then
 dispatches **fix-agent**.
+
+For the dark-mode example, say testing turns up a bug: `fix: toggling
+twice re-triggers the API call`. fix-agent patches it and appends
+`## Follow-up 1 — Applied` to `.task/followups.md`.
 
 **Needs real thinking** — run `bin/copy-for-web.sh result` in the *same* web
 chat. It builds a payload from `.task/implementation.md` and
@@ -263,6 +325,10 @@ retype the original context. Oversized payloads split OVERVIEW SUMMARY then
 CURRENT PLAN STEPS to `.task/web/` attachments. Continue the loop above in
 that new chat.
 
+Concrete cue: after 4-5 follow-up rounds in the same web chat, replies
+start getting slower or losing earlier details — that's when to run
+`bin/copy-for-web.sh handoff`.
+
 ## Step 5 — Claude Code: save the task
 
 Say `save task` (or `lưu task`). The `save` skill:
@@ -282,6 +348,10 @@ Say `save task` (or `lưu task`). The `save` skill:
   one exception to never touching that file
 - resets those five files to their blank templates and deletes `.task/web/`
 - clears the Active Task section in `index.md` and adds a History row
+
+For the dark-mode example, a candidate might read: "Key Conventions:
+dark-mode state persists via SharedPreferences, not a global provider" —
+you reply `add it` to approve, or `skip` to decline.
 
 No commit — you own git; the workflow never stages or commits anything.
 

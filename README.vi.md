@@ -21,6 +21,20 @@ Mọi thứ gửi lên web chat đều bị giới hạn số ký tự (một ti
 `WEB_CHAR_LIMIT`, mặc định 25.000 ký tự), phần nào không vừa sẽ được tách
 thành file đính kèm trong `.task/web/` để bạn tự đính kèm.
 
+**Bình thường vs `--lean` (Bước 1):**
+
+| Codebase | Đường dẫn |
+|---|---|
+| Lớn hoặc chưa quen | Bình thường (`task: ...`) — `context.md` đầy đủ hơn cho planner |
+| Nhỏ, hoặc bạn đã biết rõ khu vực | `--lean` (`task (lean): ...`) — tiết kiệm token Claude, đổi lại một vòng qua lại thêm |
+
+**Sửa trực tiếp vs vòng qua web (follow-up ở Bước 4):**
+
+| Follow-up | Đường dẫn |
+|---|---|
+| Lỗi nhỏ, rõ ràng, bạn đã biết cách mô tả | Nhắn thẳng cho Claude: `fix: ...` |
+| Lỗi chưa rõ, hoặc plan còn thiếu gì đó cần cân nhắc | Đi qua web: `bin/copy-for-web.sh result` |
+
 ## Cài đặt vào một dự án
 
 ### Phương án A — tự động, không track git
@@ -120,6 +134,9 @@ bất kỳ yêu cầu task mới nào bằng ngôn ngữ tự nhiên — tiếng
 được). Main context ghi yêu cầu của bạn nguyên văn vào `.task/overview.md`
 dưới `## Original Request`, sau đó dispatch **context-agent**.
 
+Ví dụ: `task: add a dark-mode toggle to the settings screen`. (Ví dụ này
+sẽ xuyên suốt Bước 1-5 bên dưới.)
+
 context-agent đọc `.task/PROJECT.md` và `.task/overview.md`, khám phá
 codebase (qua CodeGraph nếu dự án đích có `.codegraph/`), rồi viết:
 
@@ -172,6 +189,24 @@ với sáu mục cố định: `## Summary`, `## Decisions to Review`,
 `## Out of Scope`, `## Open Questions`. Bạn chỉ cần review ba mục đầu —
 Summary, Decisions to Review, AC Coverage.
 
+Với ví dụ dark-mode, một đoạn trích minh hoạ (không phải format bắt buộc)
+của những gì trả về có thể trông như sau:
+
+```
+## Decisions to Review
+- Persist the toggle via SharedPreferences, not a new state-management
+  provider — avoids adding a dependency for a single boolean.
+
+## AC Coverage
+- AC1 (toggle visible in Settings): Step 1
+- AC2 (persists across restarts): Step 1
+
+## Steps
+| # | File | Change | Notes |
+|---|---|---|---|
+| 1 | lib/settings/settings_screen.dart | Add dark-mode Switch, wire to ThemeProvider | persists via SharedPreferences |
+```
+
 **Đường dẫn lean** — sau `bin/copy-for-web.sh --lean` (xem Bước 1), payload thay
 `.task/context.md` bằng một FILE TREE của dự án (`git ls-files`, hoặc `find` đã lọc bớt
 nếu không phải git repo) và thêm `bin/lean-note.md` vào prompt, yêu cầu web planner trả
@@ -183,6 +218,26 @@ thường. FILE TREE quá lớn sẽ giảm dần: file gây nhiễu (lockfile, 
 `.task/**`) bị loại trước, rồi gộp thành số đếm theo thư mục `dir/ (N files)`, rồi đính
 kèm toàn bộ cây dưới dạng `.task/web/file-tree.txt`; `--split` ép cả FILE TREE lẫn
 PROJECT thành file đính kèm ngay.
+
+Vòng qua lại cụ thể: `task (lean): add a dark-mode toggle to the settings
+screen`, rồi `bin/copy-for-web.sh --lean`. Web có thể trả lời bằng một danh
+sách minh hoạ (giả định) như:
+
+```
+1. lib/settings/settings_screen.dart
+2. lib/theme/theme_provider.dart
+```
+
+Sau đó `bin/attach.sh lib/settings/settings_screen.dart lib/theme/theme_provider.dart`
+in ra:
+
+```
+lib/settings/settings_screen.dart -> lib__settings__settings_screen.dart
+lib/theme/theme_provider.dart -> lib__theme__theme_provider.dart
+Total chars now in .task/web: 3214
+```
+
+Đính kèm cả hai file trong web UI, xin kế hoạch, rồi tiếp tục ở Bước 3.
 
 ## Bước 3 — Claude Code: execute
 
@@ -223,6 +278,9 @@ tự, chạy `## Verify Command` từ `PROJECT.md` (tối đa 3 lần thử), v�
 `## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`), giới
 hạn ≤ 5.000 ký tự. Không commit — workflow không đụng vào git.
 
+Với ví dụ dark-mode, một dòng `## Changes` minh hoạ:
+`- lib/settings/settings_screen.dart: added dark-mode toggle, persists via SharedPreferences`
+
 ## Bước 4 — kiểm thử và sửa (lặp lại, không giới hạn vòng)
 
 Kiểm thử thủ công. Hai đường, lặp lại bao nhiêu lần tuỳ cần:
@@ -231,6 +289,10 @@ Kiểm thử thủ công. Hai đường, lặp lại bao nhiêu lần tuỳ cầ
 `add: ...` (hoặc bất kỳ yêu cầu follow-up nào). Main context nối
 `## Follow-up N` (yêu cầu của bạn, nguyên văn) vào `.task/followups.md`, rồi
 dispatch **fix-agent**.
+
+Với ví dụ dark-mode, giả sử test phát hiện lỗi: `fix: toggling twice
+re-triggers the API call`. fix-agent sửa lỗi rồi nối `## Follow-up 1 —
+Applied` vào `.task/followups.md`.
 
 **Cần suy nghĩ thật sự** — chạy `bin/copy-for-web.sh result` trong *cùng*
 web chat. Nó dựng payload từ `.task/implementation.md` và
@@ -259,6 +321,10 @@ ban đầu. Payload quá lớn sẽ tách OVERVIEW SUMMARY rồi tới CURRENT P
 thành file đính kèm trong `.task/web/`. Tiếp tục vòng lặp ở trên trong chat
 mới đó.
 
+Dấu hiệu cụ thể: sau 4-5 vòng follow-up trong cùng web chat, câu trả lời
+bắt đầu chậm hơn hoặc mất chi tiết trước đó — đó là lúc nên chạy
+`bin/copy-for-web.sh handoff`.
+
 ## Bước 5 — Claude Code: lưu task
 
 Gõ `lưu task` (hoặc `save task`). Skill `save`:
@@ -278,6 +344,10 @@ Gõ `lưu task` (hoặc `save task`). Skill `save`:
   việc không bao giờ đụng vào file này
 - reset năm file đó về template rỗng và xoá `.task/web/`
 - xoá mục Active Task trong `index.md` và thêm một dòng History
+
+Với ví dụ dark-mode, một gợi ý candidate có thể là: "Key Conventions:
+dark-mode state persists via SharedPreferences, not a global provider" —
+bạn trả lời `add it` để duyệt, hoặc `skip` để từ chối.
 
 Không commit — bạn tự quản lý git; workflow không bao giờ stage hay commit
 bất cứ gì.
