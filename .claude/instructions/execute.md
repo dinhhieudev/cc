@@ -84,10 +84,7 @@ Before changing code:
   before changing any code and report it (see Escalation) — do not
   guess on a real decision
 
-If the plan conflicts with the actual codebase, do not blindly follow
-it. Determine whether the conflict is trivial and safely resolvable,
-architectural, or ambiguous. For architectural or ambiguous conflicts,
-stop and report the issue (see Escalation).
+If the plan conflicts with the actual codebase, do not blindly follow it. Determine whether the conflict is trivial and safely resolvable, architectural, or ambiguous. For architectural or ambiguous conflicts, stop and report the issue (see Escalation).
 
 ### 2. Inspect Existing Patterns
 
@@ -128,16 +125,9 @@ After implementation:
   `## AC Coverage`)
 - run the `## Verify Command` from `.task/PROJECT.md`
 
-Do not read the whole verify log into context: redirect its output to a
-temp file, then read back only the last ~50 lines plus any lines matching
-an error/warning pattern (e.g. `{command} > /tmp/verify.log 2>&1; tail -n
-50 /tmp/verify.log; grep -iE 'error|failed|warning' /tmp/verify.log | head -40`).
-Record only the pass/fail verdict and the essential error lines in `.task/implementation.md`.
+Do not read the whole verify log into context: redirect its output to a temp file, then read back only the last ~50 lines plus any lines matching an error/warning pattern (e.g. `{command} > /tmp/verify.log 2>&1; tail -n 50 /tmp/verify.log; grep -iE 'error|failed|warning' /tmp/verify.log | head -40`). Record only the pass/fail verdict and the essential error lines in `.task/implementation.md`.
 
-The Verify Command must pass before proceeding. If it fails, fix the code
-and re-run it, up to 3 attempts total. If it still fails after the third
-attempt, write `.task/implementation.md` with `## Verify` showing the
-failing command and output, then STOP and report exactly:
+The Verify Command must pass before proceeding. If it fails, fix the code and re-run it, up to 3 attempts total. If it still fails after the third attempt, write `.task/implementation.md` with `## Verify` showing the failing command and output, then STOP and report exactly:
 
 > The Verify Command (`{verify command}`) still fails after 3 attempts.
 >
@@ -177,6 +167,10 @@ with why. If none: None.
 ## PROJECT.md Candidates
 - <PROJECT.md section name>: <the fact>
 ```
+
+`## Deviations from Plan`: if mock/dummy/placeholder data or a stub was used because a real data source (API, backend, service) wasn't available or in scope, note it explicitly here — what's mocked, where (file/function), and what a future task needs to do to replace it with the real source; this is discoverable later via `## Related Task` lookups on the same Screen tag.
+
+`## Manual Test Checklist`: for changes touching gestures, camera, location, performance-sensitive lists/scrolling, or platform permission dialogs, include a real-device check — simulators/emulators often hide real gesture, permission, and performance behavior.
 
 `## PROJECT.md Candidates`: at most 5 bullets, each a single line, each a durable project-level fact worth adding to `.task/PROJECT.md` that is NOT already stated there (a convention, architectural constraint, important file, or gotcha) — format `- <PROJECT.md section name>: <the fact>`. Write `None` when nothing qualifies — that is the normal case for a routine task; task-specific detail, restatements of PROJECT.md, and anything already in the code's own docs don't qualify. This file is pasted into the web chat later (alongside `.task/followups.md`, in one message limited to 25,000 characters total) — keep it terse. **Budget: `.task/implementation.md` must be ≤ 5,000 characters**, this section included (check with `wc -m .task/implementation.md`; compress if over).
 

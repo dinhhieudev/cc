@@ -66,6 +66,11 @@
 <!-- Example:
 - Must not break iOS 16 backward compat
 - No third-party networking libraries
+- Minimum supported OS version: iOS 16 / Android 8 (API 26)
+- Offline/caching strategy: cache-first, background refresh
+- Analytics events follow snake_case naming (e.g. screen_view, button_tap)
+- New features gated behind a feature flag / remote config
+- Tablet/foldable layouts not yet supported — phone-only for now
 -->
 
 ## Verify Command

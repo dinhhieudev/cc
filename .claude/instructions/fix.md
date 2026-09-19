@@ -113,6 +113,11 @@ already stated in `.task/PROJECT.md` (a convention, an architectural
 constraint, an important file, a gotcha) — omit it entirely otherwise;
 having none is the normal case.
 
+If this follow-up used mock/placeholder data in place of an
+unavailable real source, note it under `Not done` (what's mocked, what
+the real source is) — same convention as `.task/implementation.md`'s
+`## Deviations from Plan`.
+
 Keep it terse. **Budget: each `## Follow-up N — Applied` section must be
 ≤ 1,200 characters** (check with `wc -m`; compress if over), including
 any `PROJECT.md candidate` lines — it, plus `implementation.md` and

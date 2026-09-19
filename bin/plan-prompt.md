@@ -21,6 +21,14 @@ Produce a plan with these sections, in this order:
 - `## Out of Scope` — what you are deliberately not doing.
 - `## Open Questions` — write `None` if there are none.
 
+When the task is UI-facing, consider whether `## AC Coverage` / `## Steps`
+should account for: visual/interaction states (loading, empty, error),
+appearance modes (light/dark) if the project supports them, different
+screen sizes, localized strings (no hardcoded user-facing text, if the
+project uses i18n), and permission flows (camera/location/notifications:
+granted, denied, rationale) if the feature touches one. Not a mandatory
+checklist for every plan — only what's relevant to this task.
+
 Style: terse, sentence fragments are fine, do not restate context already
 given below. Include a code snippet only if essential to remove
 ambiguity. Target roughly 60 lines or fewer overall. The human reviewing
