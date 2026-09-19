@@ -20,7 +20,7 @@ Architecture, conventions, and source layout are already documented in `.task/PR
 
 ## Screen, Related Task & Design Reference
 
-`.task/overview.md`'s `## Screen` (written by main context, or `—`) and `## Related Task` (best-effort grep of `.task/index.md`'s History table for a matching Screen value, per the Output 1 template below) are cheap lookups, never blocking — no match is a normal, expected outcome, not an error. Determine `## Design Reference` from `## Original Request`: a Figma URL, or — if `.task/design/` has files — a note that screenshot(s) were provided instead, or `None` for non-UI tasks. If it's a Figma URL and Figma MCP tools appear available (try `mcp__claude_ai_Figma__get_design_context`; a failed call or missing server is a normal negative result, not an error), call it plus `get_metadata`/`get_variable_defs` as useful, map tokens to the project's design-system file if one exists (note it in `## Files to Attach`), and write a compact structural summary — layout, tokens, component tree, a few lines (counts against the 12,000-char budget) — into context.md's `## Relevant Architecture`. Otherwise write one line in context.md noting no inspection happened (e.g. "No Figma MCP inspection — see `.task/design/`, if any."); never interpret or describe a screenshot image yourself, that's the web planner's and human's job — `.task/design/` screenshots are forwarded to the web chat automatically by `bin/copy-for-web.sh`. Never fail the task over a missing Screen tag, Related Task match, Figma link, or MCP.
+`.task/overview.md`'s `## Screen` (written by main context, or `—`) and `## Related Task` (best-effort grep of `.task/index.md`'s History table for a matching Screen value, per the Output 1 template below) are cheap lookups, never blocking — no match is a normal, expected outcome, not an error. Determine `## Design Reference` from `## Original Request`: a Figma URL, or — if `.task/design/` has files — a note that screenshot(s) were provided instead, or `None` for non-UI tasks. If it's a Figma URL and Figma MCP tools appear available (try `mcp__claude_ai_Figma__get_design_context`; a failed call or missing server is a normal negative result, not an error), call it plus `get_metadata`/`get_variable_defs` as useful, map tokens to the project's design-system file if one exists (note it in `## Files to Attach`), and write a compact structural summary — layout, tokens, component tree, a few lines (counts against the 12,000-char budget) — into context.md's `## Design Spec`. Otherwise write one line in context.md noting no inspection happened (e.g. "No Figma MCP inspection — see `.task/design/`, if any."); never interpret or describe a screenshot image yourself, that's the web planner's and human's job — `.task/design/` screenshots are forwarded to the web chat automatically by `bin/copy-for-web.sh`. Never fail the task over a missing Screen tag, Related Task match, Figma link, or MCP.
 
 ## Priority
 
@@ -114,6 +114,19 @@ structure:
 ## Relevant Architecture
 Describe only the architecture relevant to this task.
 
+## Platform & Build Context
+For mobile tasks, state affected platforms, minimum supported OS/API,
+environment/flavor/scheme, and relevant native configuration or manifest
+files. Note platform-specific behavior that the planner must preserve.
+Omit for non-mobile tasks.
+
+## Design Spec
+Present only when there is an active Figma inspection or structured
+design tokens mapped from Figma MCP. Write a compact structural summary:
+layout, spacing tokens, color tokens, component tree (a few lines).
+If no Figma inspection occurred, omit this section entirely — do not
+write "N/A" or "None".
+
 ## Relevant Files
 For each relevant file:
 
@@ -134,6 +147,13 @@ handling, concurrency, naming conventions.
 Describe the relevant flow through the layers that actually exist (e.g.
 View → ViewModel → Service → Data). Only layers present in this codebase.
 
+## Navigation Flow
+For UI/navigation tasks: how affected screen(s) are reached (push,
+present, tab, deeplink) and what back/dismiss behavior exists. Note any
+shared navigation state (e.g. NavigationStack path, router, back stack)
+that the change might affect.
+Omit entirely for non-UI tasks.
+
 ## Dependencies
 List relevant dependencies/frameworks/packages.
 
@@ -144,7 +164,13 @@ Describe how the relevant feature currently works.
 List technical constraints discovered from the codebase.
 
 ## Potential Risk Areas
-List areas that the planner should pay attention to.
+List areas that the planner should pay attention to. If the task adds or
+modifies user-visible text strings, and the project has localization files
+(e.g. `Localizable.strings`, `*.arb`, `strings.xml`), flag localization
+as a risk area and note the relevant files. For mobile tasks, also flag
+lifecycle/background behavior, offline or slow-network behavior, permission
+flows, accessibility, OS-version compatibility, and platform-specific native
+configuration when relevant.
 
 ## Relevant Code Snippets
 Include only small, highly relevant snippets when necessary. Do NOT

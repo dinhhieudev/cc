@@ -29,6 +29,14 @@ project uses i18n), and permission flows (camera/location/notifications:
 granted, denied, rationale) if the feature touches one. Not a mandatory
 checklist for every plan — only what's relevant to this task.
 
+When the project targets mobile, also consider: cold/warm launch and
+background/foreground lifecycle, back/dismiss and deep-link navigation,
+offline/slow-network behavior, accessibility, minimum OS/API compatibility,
+the configured device matrix, and every affected platform/flavor/scheme.
+For release-sensitive work, include versioning, migration, feature-flag,
+signing, artifact, and crash-symbol implications in the relevant ACs or
+Out of Scope.
+
 Style: terse, sentence fragments are fine, do not restate context already
 given below. Include a code snippet only if essential to remove
 ambiguity. Target roughly 60 lines or fewer overall. The human reviewing

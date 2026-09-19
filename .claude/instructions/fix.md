@@ -72,7 +72,14 @@ After fixing:
 - inspect changed code
 - review the diff
 - verify no obvious regressions
-- run the `## Verify Command` from `.task/PROJECT.md`
+- run verify commands from `.task/PROJECT.md` in order:
+  1. `## Type Check Command` — fast; required if present
+  2. `## Build Command` — required when the task changes buildable code or platform config
+  3. `## Test Command` — run after build when present
+  4. `## Device Smoke Test Command` — run when present and relevant
+  Backward compat: if only the old `## Verify Command` field is present,
+  treat it as the type check step. Empty optional commands are skipped and
+  must be recorded as skipped, never reported as passed.
 
 Do not read the whole verify log into context: redirect its output to a
 temp file, then read back only the last ~50 lines plus any lines
@@ -81,10 +88,11 @@ matching an error/warning pattern (e.g. `{command} > /tmp/verify.log
 /tmp/verify.log | head -40`). Record only the pass/fail verdict and the
 essential error lines in the `## Follow-up N — Applied` section.
 
-The Verify Command must pass before proceeding. If it fails, fix the code
-and re-run it, up to 3 attempts total.
+Every configured verify command must pass before proceeding. If any command
+fails, fix the code and rerun the pipeline from type check, up to 3 full
+attempts total.
 
-If `.task/PROJECT.md` has no Verify Command filled in, say so explicitly
+If `.task/PROJECT.md` has no type check, build, test, or verify command filled in, say so explicitly
 in the Applied section instead of silently skipping this step.
 
 ### 4. Append to followups.md
@@ -97,7 +105,11 @@ stay in order: request N, applied N, request N+1, ...):
 ## Follow-up N — Applied
 - `path/to/file`: what changed, 1 line
 
-Verify: {command} → pass|fail
+Verify:
+- Type check: {command} → pass|fail|skipped
+- Build: {command} → pass|fail|skipped
+- Tests: {command} → pass|fail|skipped
+- Device smoke: {command} → pass|fail|skipped
 
 Manual test:
 - [ ] ...

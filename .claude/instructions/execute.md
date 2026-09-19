@@ -123,13 +123,24 @@ After implementation:
 - review the diff
 - confirm every Acceptance Criterion is addressed (cross-check against
   `## AC Coverage`)
-- run the `## Verify Command` from `.task/PROJECT.md`
+- run verify commands from `.task/PROJECT.md` in this order:
+  1. `## Type Check Command` — fast; required if present
+  2. `## Build Command` — required when the task changes buildable code or platform config
+  3. `## Test Command` — run after build when present
+  4. `## Device Smoke Test Command` — run when present and relevant to the task
+  Backward compat: if only the old `## Verify Command` field is present,
+  treat it as the type check step. Empty optional commands are skipped and
+  must be recorded as skipped, never reported as passed.
 
 Do not read the whole verify log into context: redirect its output to a temp file, then read back only the last ~50 lines plus any lines matching an error/warning pattern (e.g. `{command} > /tmp/verify.log 2>&1; tail -n 50 /tmp/verify.log; grep -iE 'error|failed|warning' /tmp/verify.log | head -40`). Record only the pass/fail verdict and the essential error lines in `.task/implementation.md`.
 
-The Verify Command must pass before proceeding. If it fails, fix the code and re-run it, up to 3 attempts total. If it still fails after the third attempt, write `.task/implementation.md` with `## Verify` showing the failing command and output, then STOP and report exactly:
+Every configured verify command must pass before proceeding. Run type check
+before build, and build before tests. If any configured command fails, fix the
+code and rerun the pipeline from type check, up to 3 full attempts total. If
+it still fails after the third attempt, write `.task/implementation.md` with
+`## Verify` showing the failing command and output, then STOP and report exactly:
 
-> The Verify Command (`{verify command}`) still fails after 3 attempts.
+> The configured verify pipeline (`{failing command}`) still fails after 3 attempts.
 >
 > Final failing output:
 > ```
@@ -141,7 +152,7 @@ The Verify Command must pass before proceeding. If it fails, fix the code and re
 > - {summary of attempt 2}
 > - {summary of attempt 3}
 
-If `.task/PROJECT.md` has no Verify Command filled in, say so explicitly
+If `.task/PROJECT.md` has no type check, build, test, or verify command filled in, say so explicitly
 in `.task/implementation.md` instead of silently skipping this step.
 
 ### 5. Write implementation.md
@@ -159,7 +170,10 @@ Any Acceptance Criterion with no plan step, or any plan step not done,
 with why. If none: None.
 
 ## Verify
-{command} → pass|fail (+ output if fail)
+- Type check: {command} → pass|fail|skipped
+- Build: {command} → pass|fail|skipped
+- Tests: {command} → pass|fail|skipped
+- Device smoke: {command} → pass|fail|skipped
 
 ## Manual Test Checklist
 - [ ] ...
@@ -170,7 +184,14 @@ with why. If none: None.
 
 `## Deviations from Plan`: if mock/dummy/placeholder data or a stub was used because a real data source (API, backend, service) wasn't available or in scope, note it explicitly here — what's mocked, where (file/function), and what a future task needs to do to replace it with the real source; this is discoverable later via `## Related Task` lookups on the same Screen tag.
 
-`## Manual Test Checklist`: for changes touching gestures, camera, location, performance-sensitive lists/scrolling, or platform permission dialogs, include a real-device check — simulators/emulators often hide real gesture, permission, and performance behavior.
+`## Manual Test Checklist`: generate a checklist appropriate to what was changed:
+- **UI changes**: include checks for light/dark mode, smallest and largest Dynamic Type, portrait/landscape (unless rotation-locked), loading/empty/error states, accessibility labels, and localization when applicable. If `## Platform` targets both iOS and Android, include a check for each platform.
+- **Network-dependent features**: include offline and slow-network checks.
+- **Persisted state**: include a fresh-launch/restart check.
+- **Gestures, camera, location, permissions, or performance-sensitive lists/scrolling**: include a real-device check — simulators/emulators often hide real gesture, permission, and performance behavior.
+- **OS version span**: if `## Known Constraints` lists a minimum OS version that spans a major release boundary (e.g. iOS 16 vs iOS 17+), include a check on the minimum supported version.
+- **Lifecycle/navigation**: when relevant, include background/foreground, cold start, back/dismiss, deep link, and state restoration checks.
+- **Release-sensitive changes**: include the affected environment/flavor and upgrade-from-previous-version check.
 
 `## PROJECT.md Candidates`: at most 5 bullets, each a single line, each a durable project-level fact worth adding to `.task/PROJECT.md` that is NOT already stated there (a convention, architectural constraint, important file, or gotcha) — format `- <PROJECT.md section name>: <the fact>`. Write `None` when nothing qualifies — that is the normal case for a routine task; task-specific detail, restatements of PROJECT.md, and anything already in the code's own docs don't qualify. This file is pasted into the web chat later (alongside `.task/followups.md`, in one message limited to 25,000 characters total) — keep it terse. **Budget: `.task/implementation.md` must be ≤ 5,000 characters**, this section included (check with `wc -m .task/implementation.md`; compress if over).
 
@@ -188,6 +209,6 @@ rather than restating its contents.
 5. Do not expand scope.
 6. Do not perform unrelated refactoring.
 7. Keep implementation simple.
-8. Do not add tests unless requested.
+8. Add or update tests when the risk warrants them: business logic and bug fixes should have regression coverage when practical; document justified omissions in Deviations from Plan.
 9. Do not expose secrets.
 10. No commit — this workflow does not touch git.

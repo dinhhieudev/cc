@@ -17,6 +17,10 @@ If nothing needs fixing, say so explicitly instead of inventing work.
 The human may also paste their own test findings below the
 implementation report — take those into account too.
 
+For mobile work, treat skipped platform/flavor builds, device smoke tests,
+permission/lifecycle checks, accessibility/localization checks, and
+upgrade testing as explicit gaps when they are relevant to the changed behavior.
+
 Some sections below may be provided as attached files instead of pasted
 inline — read them too.
 
