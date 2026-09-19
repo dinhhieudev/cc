@@ -57,7 +57,7 @@ fi
 
 AGENT_FILES=(context-agent.md execute-agent.md fix-agent.md)
 SKILL_DIRS=(save)
-BIN_FILES=(copy-for-web.sh plan-prompt.md result-prompt.md save-plan.sh save-followup.sh attach.sh lean-note.md lib/copy-for-web-lib.sh lib/copy-for-web-modes.sh lib/copy-for-web-lean.sh lib/copy-for-web-handoff.sh lib/save-plan-lib.sh)
+BIN_FILES=(copy-for-web.sh plan-prompt.md result-prompt.md save-plan.sh save-followup.sh attach.sh lean-note.md lib/copy-for-web-lib.sh lib/copy-for-web-design.sh lib/copy-for-web-modes.sh lib/copy-for-web-lean.sh lib/copy-for-web-handoff.sh lib/save-plan-lib.sh)
 
 # --- Collision check -------------------------------------------------------
 # A path only counts as a real collision if it exists in the target with

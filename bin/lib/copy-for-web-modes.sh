@@ -22,10 +22,11 @@ run_plan_mode() {
   PROJECT_DISPLAY="$PROJECT_SECTION"
 
   copy_attach_files "$WEB_DIR"
+  copy_design_files "$WEB_DIR"
 
   recompute() {
     set_blocks "prompt" "$PROMPT" "PROJECT" "$PROJECT_DISPLAY" "OVERVIEW" "$OVERVIEW_SECTION" \
-      "CONTEXT" "$CONTEXT_DISPLAY" "ATTACHED FILES" "$ATTACH_LIST"
+      "CONTEXT" "$CONTEXT_DISPLAY" "ATTACHED FILES" "$ATTACH_LIST" "DESIGN REFERENCE" "$DESIGN_LIST"
     PAYLOAD="$(join_blocks "${BLOCKS[@]}")"
     TOTAL_CHARS=$(count_chars "$PAYLOAD")
   }

@@ -15,7 +15,7 @@ A task workflow that pairs Claude Code (codebase exploration, implementation, fi
 | `fix: ...` / `add: ...` / `làm thêm: ...` / any follow-up request on the current task | Append `## Follow-up N` (request verbatim) to `.task/followups.md` FIRST, then dispatch **fix-agent** |
 | `save task` / `lưu task` | Run `save` skill |
 
-New-task template written to `.task/overview.md` before dispatching context-agent:
+New-task template written to `.task/overview.md` before dispatching context-agent (rows 1-2 only): if the request starts with a bracketed tag like `[Login] add a dark mode toggle`, capture `Login` as the Screen tag — additional extraction, `## Original Request` still holds the full request verbatim, brackets included.
 
 ```
 # Task Overview
@@ -23,6 +23,10 @@ New-task template written to `.task/overview.md` before dispatching context-agen
 ## Original Request
 
 <request text verbatim>
+
+## Screen
+
+<tag, or "—" if none given>
 ```
 
 Equivalent phrasings in either language route the same row.

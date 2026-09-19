@@ -68,6 +68,7 @@ Copy these files into the archive folder (skip any that don't exist):
 - `plan.md`
 - `implementation.md`
 - `followups.md`
+- `design/` (folder, if it exists and has files)
 
 ### 5. Present PROJECT.md Candidates
 
@@ -143,6 +144,8 @@ is project-level and persists across tasks. The only exception in this
 workflow is step 5 (PROJECT.md Candidates), which may append
 human-approved bullets.
 
+Delete `.task/design/` if it exists — it was already archived into the archive folder in step 4, so this only clears the working copy for the next task.
+
 Delete `.task/web/` if it exists — it holds scratch attachments
 `bin/copy-for-web.sh` collected for the web chat and is never archived.
 
@@ -151,8 +154,8 @@ Delete `.task/web/` if it exists — it holds scratch attachments
 ### 7. Update index.md and report
 
 In `.task/index.md`:
+- Add a row to the History table: `| {id} | {slug} | {screen} | {today's date} | done |` — {screen} is the Active Task Screen field's current value
 - Clear the Active Task section (set all fields to `—`)
-- Add a row to the History table: `| {id} | {slug} | {today's date} | done |`
 
 Report:
 

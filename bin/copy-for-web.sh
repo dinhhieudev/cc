@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/copy-for-web-lib.sh"
+source "$SCRIPT_DIR/lib/copy-for-web-design.sh"
 source "$SCRIPT_DIR/lib/copy-for-web-modes.sh"
 source "$SCRIPT_DIR/lib/copy-for-web-lean.sh"
 source "$SCRIPT_DIR/lib/copy-for-web-handoff.sh"
@@ -19,7 +20,12 @@ Every mode's payload starts with a one-line header ("[claude++ task
 No argument: builds the planning payload from .task/PROJECT.md (if it
 has real content), .task/overview.md, and .task/context.md, prefixed
 with the planning prompt (bin/plan-prompt.md), and copies it to the
-clipboard for pasting into a ChatGPT/Gemini web conversation.
+clipboard for pasting into a ChatGPT/Gemini web conversation. If
+.task/design/ exists and has files, every file in it is also copied
+into .task/web/ (same secret-filename guard and 200 KB size cap as
+bin/attach.sh — the secret-filename guard exempts image files) and
+listed under a "--- DESIGN REFERENCE (attached) ---" marker — attach
+those too so the web planner can see the reference screenshots.
 
 result: builds the result-review payload from .task/implementation.md
 and .task/followups.md (if it has real content), prefixed with the

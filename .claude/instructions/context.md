@@ -14,17 +14,13 @@ to understand the request.
 
 > `.task/overview.md` has no `## Original Request`. Main context must write the request verbatim before dispatching context-agent.
 
-Read, in order:
+Read `.task/PROJECT.md`, then `.task/overview.md`.
 
-    .task/PROJECT.md
-    .task/overview.md
+Architecture, conventions, and source layout are already documented in `.task/PROJECT.md` — do not re-derive them; explore only the gaps specific to this task, noting in context.md where you are confirming vs. extending what PROJECT.md already states. If the target project has a `.codegraph/` directory, use the codegraph MCP tools (`codegraph_context` first, then one `codegraph_explore` for the symbols it surfaces) instead of a grep+read loop — fall back to Read/Grep only when there is no index or codegraph did not cover a needed detail. Then inspect the actual codebase.
 
-Architecture, conventions, and source layout are already documented in `.task/PROJECT.md` — do not
-re-derive them; explore only the gaps specific to this task, noting in context.md where you are
-confirming vs. extending what PROJECT.md already states. If the target project has a `.codegraph/`
-directory, use the codegraph MCP tools (`codegraph_context` first, then one `codegraph_explore` for
-the symbols it surfaces) instead of a grep+read loop — fall back to Read/Grep only when there is no
-index or codegraph did not cover a needed detail. Then inspect the actual codebase.
+## Screen, Related Task & Design Reference
+
+`.task/overview.md`'s `## Screen` (written by main context, or `—`) and `## Related Task` (best-effort grep of `.task/index.md`'s History table for a matching Screen value, per the Output 1 template below) are cheap lookups, never blocking — no match is a normal, expected outcome, not an error. Determine `## Design Reference` from `## Original Request`: a Figma URL, or — if `.task/design/` has files — a note that screenshot(s) were provided instead, or `None` for non-UI tasks. If it's a Figma URL and Figma MCP tools appear available (try `mcp__claude_ai_Figma__get_design_context`; a failed call or missing server is a normal negative result, not an error), call it plus `get_metadata`/`get_variable_defs` as useful, map tokens to the project's design-system file if one exists (note it in `## Files to Attach`), and write a compact structural summary — layout, tokens, component tree, a few lines (counts against the 12,000-char budget) — into context.md's `## Relevant Architecture`. Otherwise write one line in context.md noting no inspection happened (e.g. "No Figma MCP inspection — see `.task/design/`, if any."); never interpret or describe a screenshot image yourself, that's the web planner's and human's job — `.task/design/` screenshots are forwarded to the web chat automatically by `bin/copy-for-web.sh`. Never fail the task over a missing Screen tag, Related Task match, Figma link, or MCP.
 
 ## Priority
 
@@ -45,18 +41,23 @@ Final report instead: state lean mode ran and the next step is `bin/copy-for-web
 
 ## Output 1 of 2: `.task/overview.md`
 
-Rewrite the file in full: keep `## Original Request` verbatim at the top, then write the spec
-sections below from it. Pasted into a web chat with the external planner (alongside
-`.task/PROJECT.md` and `.task/context.md`, one message limited to 25,000 characters total).
-**Budget: `.task/overview.md` must be ≤ 4,000 characters** (check with `wc -m .task/overview.md`;
-`## Original Request` is kept verbatim even if large — tighten the rest of the document to
-compensate).
+Rewrite the file in full: keep `## Original Request` verbatim at the top and `## Screen` carried through unchanged, then write the spec sections below from it. Pasted into a web chat with the external planner (alongside `.task/PROJECT.md` and `.task/context.md`, one message limited to 25,000 characters total).
+**Budget: `.task/overview.md` must be ≤ 4,000 characters** (check with `wc -m .task/overview.md`; `## Original Request` is kept verbatim even if large — tighten the rest of the document to compensate).
 
 ```
 # Task Overview
 
 ## Original Request
 The verbatim request as given by the human.
+
+## Screen
+The Screen tag from the dispatch template, or "—" if none given.
+
+## Related Task
+Best-effort grep of `.task/index.md`'s History table for a matching Screen value; name the best match's `ID-Name` + a one-line why (up to 2-3 if genuinely ambiguous — flag in the final report), or `None found for this Screen — explored the codebase directly instead.` if no tag or no match.
+
+## Design Reference
+A Figma link from the Original Request, a note that screenshot(s) were provided instead (see `.task/design/`), or `None` for non-UI tasks.
 
 ## Goal
 Describe the desired outcome in 1-3 sentences.
@@ -96,9 +97,7 @@ Before moving on, verify against this checklist (revise if any item fails):
 
 ### Update task index
 
-In `.task/index.md`, update the Active Task section: ID = count of `.task/done/`
-subdirectories (excluding `README.md`) + 1, zero-padded to 3 digits; Name = slug
-from the Goal (lowercase, hyphens, max 5 words); Started = today's date; Status = `spec`.
+In `.task/index.md`, update the Active Task section: ID = count of `.task/done/` subdirectories (excluding `README.md`) + 1, zero-padded to 3 digits; Name = slug from the Goal (lowercase, hyphens, max 5 words); Screen = the `## Screen` value from overview.md (`—` if none given); Started = today's date; Status = `spec`.
 
 ## Output 2 of 2: `.task/context.md`
 
@@ -172,16 +171,11 @@ attachments for the web chat.
 3. Do not inspect unrelated parts of the repository.
 4. Do not design the final solution or write implementation code.
 5. Do not modify production source code or `.task/PROJECT.md`.
-6. Never include secrets: API keys, passwords, tokens, certificates,
-   private keys, `.env` contents, customer/user data. If a file contains
-   sensitive information, describe its role without exposing the content.
-7. Optimize for information density: file paths, symbol names, short
-   explanations, relevant snippets — not repeated info, full file
-   contents, unrelated details, generated files, dependency internals.
-8. Preserve the user's actual intent in overview.md: do not invent
-   requirements or architectural decisions; separate requirements from
-   implementation ideas; mark unknowns explicitly.
+6. Never include secrets: API keys, passwords, tokens, certificates, private keys, `.env` contents, customer/user data. If a file contains sensitive information, describe its role without exposing the content.
+7. Optimize for information density: file paths, symbol names, short explanations, relevant snippets — not repeated info, full file contents, unrelated details, generated files, dependency internals.
+8. Preserve the user's actual intent in overview.md: do not invent requirements or architectural decisions; separate requirements from implementation ideas; mark unknowns explicitly.
 9. Write both files and stop — do not implement anything.
+10. When `## Related Task` names an archived task, read its `.task/done/{id}-{slug}/overview.md` (`## Design Reference`/`## Screen`) and `implementation.md` (`## Changes`) — only those two files, and only those sections — as extra context alongside normal exploration.
 
 ## Quality Check (context.md)
 

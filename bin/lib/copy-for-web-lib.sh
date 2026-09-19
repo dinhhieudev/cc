@@ -134,7 +134,7 @@ extract_attach_paths() {
 # ATTACH_LIST to a "--- ATTACHED FILES ---" block (or "" if none/none
 # valid). Warns and skips missing or unsafe paths.
 copy_attach_files() {
-  local web_dir="$1" rel_path flat lines=""
+  local web_dir="$1" rel_path lines=""
   while IFS= read -r rel_path; do
     [[ -z "$rel_path" ]] && continue
     if is_unsafe_path "$rel_path"; then
@@ -145,12 +145,10 @@ copy_attach_files() {
       echo "Warning: attach path '$rel_path' not found; skipping." >&2
       continue
     fi
-    flat="${rel_path//\//__}"
-    cp "$rel_path" "$web_dir/$flat"
-    WEB_FILES+=("$flat")
-    if [[ -z "$lines" ]]; then lines="$flat — $rel_path"
+    copy_web_file "$web_dir" "$rel_path" "$rel_path"
+    if [[ -z "$lines" ]]; then lines="$WEB_LINE"
     else lines="$lines
-$flat — $rel_path"
+$WEB_LINE"
     fi
   done < <(extract_attach_paths .task/context.md)
   ATTACH_LIST=""

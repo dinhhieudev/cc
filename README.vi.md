@@ -53,7 +53,7 @@ dựa vào `.gitignore` để giữ mọi thứ nó cài đặt ngoài git statu
 - `.task/` — chỉ khi dự án đích chưa có `.task/` (cài mới hoàn toàn; nếu đã
   có `.task/` thì giữ nguyên không đụng vào)
 - `bin/{copy-for-web.sh,plan-prompt.md,result-prompt.md,save-plan.sh,save-followup.sh,attach.sh,lean-note.md}`
-  và `bin/lib/{copy-for-web-lib.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
+  và `bin/lib/{copy-for-web-lib.sh,copy-for-web-design.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
 
 Nó cũng gộp `CLAUDE.md` của repo này (bảng Agent Routing + các hard rules)
 vào `CLAUDE.local.md` của dự án đích, giữa các marker comment, và thêm một
@@ -164,6 +164,13 @@ tiết kiệm token Claude, đổi lại một vòng qua lại thêm với web p
 chưa quen, đường bình thường với `context.md` cho planner ngữ cảnh tốt hơn, nên ưu tiên
 dùng đường đó. Tiếp tục ở Bước 2 với `bin/copy-for-web.sh --lean` thay vì dạng thường.
 
+**Ảnh thiết kế tham khảo (tùy chọn)** — bỏ ảnh chụp màn hình tham khảo cho một task UI vào
+`.task/design/` bất cứ lúc nào trước Bước 2; `bin/copy-for-web.sh` (plan mode) tự động đính
+kèm chúng (xem Bước 2). Claude Code không bao giờ tự mở các ảnh này, chỉ chuyển tiếp — AI
+web planner mới là bên đọc trực tiếp. Nếu bạn đưa context-agent một link Figma và dự án có
+cấu hình Figma MCP, nó sẽ trích một mô tả dạng văn bản vào mục CONTEXT của
+`.task/context.md` như bình thường (Figma MCP là tùy chọn; bỏ qua nhẹ nhàng nếu không có).
+
 ## Bước 2 — AI web: lập kế hoạch
 
 Chạy:
@@ -180,6 +187,12 @@ CONTEXT bị tách thành file đính kèm trong `.task/web/` trước, rồi t�
 PROJECT nếu vẫn còn vượt; `--split` ép cả hai thành file đính kèm bất kể
 kích thước. Một cảnh báo (kèm bảng chi tiết kích thước từng phần) sẽ in ra
 khi đạt 85% giới hạn.
+
+Nếu `.task/design/` có ảnh chụp màn hình tham khảo, chúng cũng được tự động đính kèm theo
+cách tương tự (liệt kê dưới `--- DESIGN REFERENCE (attached) ---`) — đính kèm luôn cả những
+file đó. `bin/plan-prompt.md` yêu cầu web planner đối chiếu từng ảnh với mô tả từ Figma (nếu
+có) trong CONTEXT và nêu rõ chỗ không khớp thành một mục Decision to Review hoặc Open
+Question; nếu không có mô tả nào, ảnh là nguồn tham khảo chính cho layout.
 
 Dán nội dung clipboard vào một cuộc hội thoại web **mới**, và đính kèm mọi
 file mà `.task/web/` liệt kê. `bin/plan-prompt.md` yêu cầu model web hỏi lại
@@ -387,6 +400,7 @@ trong `.task/web/` — tự bạn đính kèm chúng trong web chat.
 │   ├── save-followup.sh
 │   ├── save-plan.sh
 │   └── lib/
+│       ├── copy-for-web-design.sh
 │       ├── copy-for-web-handoff.sh
 │       ├── copy-for-web-lean.sh
 │       ├── copy-for-web-lib.sh

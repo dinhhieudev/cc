@@ -3,24 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/copy-for-web-lib.sh"
-
-MAX_BYTES=204800 # 200 KB
-
-# True (exit 0) if $1's basename looks like a secret/credential file.
-# Pattern-based only — does not inspect file contents.
-is_secret_file() {
-  local base lower
-  base="$(basename "$1")"
-  lower="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')"
-  case "$lower" in
-    .env|.env.*) return 0 ;;
-    *.pem|*.key|*.p12|*.pfx|*.jks|*.keystore) return 0 ;;
-    id_rsa|id_ed25519|id_dsa|id_ecdsa) return 0 ;;
-    .npmrc|.netrc|.git-credentials|credentials) return 0 ;;
-    *secret*|*credential*|*password*|*apikey*|*api_key*|*token*) return 0 ;;
-  esac
-  return 1
-}
+source "$SCRIPT_DIR/lib/copy-for-web-design.sh"
+# MAX_BYTES (200 KB) comes from copy-for-web-design.sh, shared with
+# copy_design_files() there.
 
 usage() {
   cat <<'EOF'
@@ -39,10 +24,12 @@ paths that don't exist, are directories, or are over 200 KB. Also
 warns and skips paths whose basename looks like a secret/credential
 file (.env*, *.pem/*.key/*.p12/*.pfx/*.jks/*.keystore, private SSH
 keys, .npmrc/.netrc/.git-credentials, or names containing
-secret/credential/password/apikey/api_key/token) — this is a filename
-pattern check, not a content scanner; pass --force-secret to copy such
-files anyway. Prints each "path -> flattened name" and the total
-character count of everything now in .task/web/.
+secret/credential/password/apikey/api_key/token — except that last
+group of name checks does not apply to image files: png/jpg/jpeg/
+gif/webp/svg/bmp/ico) — this is a filename pattern check, not a
+content scanner; pass --force-secret to copy such files anyway.
+Prints each "path -> flattened name" and the total character count of
+everything now in .task/web/.
 
 "-" reads newline-separated paths from stdin instead of argv.
 

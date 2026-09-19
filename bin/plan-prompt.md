@@ -36,5 +36,13 @@ produce the plan directly.
 Some sections below may be provided as attached files instead of pasted
 inline — read them too.
 
+CONTEXT may include a textual design description derived from Figma via
+MCP; a reference screenshot may also be attached separately under DESIGN
+REFERENCE. When both are present, cross-check the screenshot against the
+written description and call out any mismatch explicitly as a `##
+Decisions to Review` or `## Open Questions` entry, whichever fits. When
+only a screenshot is attached, it is the primary source of truth for
+visual layout — read it directly.
+
 Below is the project context, task overview, and codebase context for
 this task:

@@ -54,7 +54,7 @@ target's git status. It copies:
 - `.task/` — only if the target has no `.task/` yet (a fresh install; an
   existing `.task/` is left untouched)
 - `bin/{copy-for-web.sh,plan-prompt.md,result-prompt.md,save-plan.sh,save-followup.sh,attach.sh,lean-note.md}`
-  and `bin/lib/{copy-for-web-lib.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
+  and `bin/lib/{copy-for-web-lib.sh,copy-for-web-design.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
 
 It also merges this repo's `CLAUDE.md` (Agent Routing table + hard rules)
 into the target's `CLAUDE.local.md` between marker comments, and adds a
@@ -166,6 +166,13 @@ one extra round trip with the web planner; for a large, unfamiliar codebase the 
 path's `context.md` gives the planner better context, so prefer that instead. Continue at
 Step 2 with `bin/copy-for-web.sh --lean` rather than the plain form.
 
+**Design reference (optional)** — drop reference screenshots for a UI task into
+`.task/design/` any time before Step 2; plan-mode `bin/copy-for-web.sh` auto-attaches them
+(see Step 2). Claude Code never opens these images itself, only forwards them — the AI web
+planner reads them directly. If you give context-agent a Figma link and this project has
+Figma MCP configured, it extracts a text description into `.task/context.md`'s CONTEXT
+section as usual (Figma MCP is optional; skipped gracefully when not available).
+
 ## Step 2 — AI web: planning
 
 Run:
@@ -182,6 +189,12 @@ overridable via the environment variable), CONTEXT is split to a
 `.task/web/` attachment file first, then PROJECT if still over; `--split`
 forces both to attachments regardless of size. A warning (with a per-section
 size breakdown) prints at 85% of the limit.
+
+If `.task/design/` has reference screenshots, they're auto-attached the same way
+(listed under `--- DESIGN REFERENCE (attached) ---`) — attach those too.
+`bin/plan-prompt.md` asks the web planner to cross-check each screenshot against any
+Figma-derived description in CONTEXT and flag mismatches as a Decision to Review or Open
+Question; with no such description, the screenshot alone is the source of truth for layout.
 
 Paste the clipboard content into a **new** web chat, and attach any files
 `.task/web/` lists. `bin/plan-prompt.md` asks the web model to question you
@@ -390,6 +403,7 @@ Whatever doesn't fit is split into attachment files under `.task/web/` by
 │   ├── save-followup.sh
 │   ├── save-plan.sh
 │   └── lib/
+│       ├── copy-for-web-design.sh
 │       ├── copy-for-web-handoff.sh
 │       ├── copy-for-web-lean.sh
 │       ├── copy-for-web-lib.sh

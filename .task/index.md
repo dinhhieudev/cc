@@ -13,6 +13,7 @@
 |---------|-------|
 | ID      | —     |
 | Name    | —     |
+| Screen  | —     |
 | Started | —     |
 | Status  | —     |
 
@@ -20,5 +21,5 @@
 
 ## History
 
-| ID | Name | Date | Status |
-|---|---|---|---|
+| ID | Name | Screen | Date | Status |
+|---|---|---|---|---|

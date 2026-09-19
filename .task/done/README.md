@@ -14,3 +14,4 @@ Each subdirectory contains the full task workspace snapshot:
 - `plan.md`
 - `implementation.md`
 - `followups.md`
+- `design/` (folder, if it exists and has files)
