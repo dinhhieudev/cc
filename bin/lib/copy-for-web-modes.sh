@@ -20,6 +20,7 @@ run_plan_mode() {
   CONTEXT_SECTION=$'--- CONTEXT ---\n'"$(cat .task/context.md)"
   CONTEXT_DISPLAY="$CONTEXT_SECTION"
   PROJECT_DISPLAY="$PROJECT_SECTION"
+  [[ -n "$PROJECT_DISPLAY" ]] && PROJECT_DISPLAY="$(printf '%s' "$PROJECT_DISPLAY" | strip_comments /dev/stdin)"
 
   copy_attach_files "$WEB_DIR"
   copy_design_files "$WEB_DIR"
@@ -67,8 +68,15 @@ run_result_mode() {
     FOLLOWUPS_DISPLAY=$'--- FOLLOW-UPS ---\n'"$(cat .task/followups.md)"
   fi
 
+  copy_result_screenshots "$WEB_DIR"
+  DIFF_LIST=""
+  if [[ "$WANT_DIFF" -eq 1 ]]; then
+    write_diff_attachment "$WEB_DIR"
+  fi
+
   recompute() {
-    set_blocks "prompt" "$PROMPT" "IMPLEMENTATION" "$IMPLEMENTATION_DISPLAY" "FOLLOW-UPS" "$FOLLOWUPS_DISPLAY"
+    set_blocks "prompt" "$PROMPT" "IMPLEMENTATION" "$IMPLEMENTATION_DISPLAY" "FOLLOW-UPS" "$FOLLOWUPS_DISPLAY" \
+      "RESULT SCREENSHOTS" "$RESULT_SHOTS_LIST" "CODE DIFF" "$DIFF_LIST"
     PAYLOAD="$(join_blocks "${BLOCKS[@]}")"
     TOTAL_CHARS=$(count_chars "$PAYLOAD")
   }

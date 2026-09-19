@@ -48,11 +48,13 @@ copy_web_file() {
 
 # Copies every file under .task/design/ (plan mode only — a human-populated
 # folder of reference screenshots for the AI web planner; Claude Code never
-# reads them) into $1, flattening the path relative to .task/design/ ("/" ->
-# "__"). Applies the same secret-filename guard and 200 KB size cap as
-# bin/attach.sh. Appends flattened names to WEB_FILES and sets the global
-# DESIGN_LIST to a "--- DESIGN REFERENCE (attached) ---" block (or "" if
-# the folder is missing/empty/all-refused).
+# reads them), excluding .task/design/result/ (result-mode screenshots,
+# forwarded separately by copy_result_screenshots() in
+# copy-for-web-result.sh), into $1, flattening the path relative to
+# .task/design/ ("/" -> "__"). Applies the same secret-filename guard and
+# 200 KB size cap as bin/attach.sh. Appends flattened names to WEB_FILES
+# and sets the global DESIGN_LIST to a "--- DESIGN REFERENCE (attached) ---"
+# block (or "" if the folder is missing/empty/all-refused).
 copy_design_files() {
   local web_dir="$1" path rel_key lines="" size
   DESIGN_LIST=""
@@ -74,7 +76,7 @@ copy_design_files() {
     else lines="$lines
 $WEB_LINE"
     fi
-  done < <(find .task/design -type f -not -name '.*' | sort)
+  done < <(find .task/design -type f -not -name '.*' -not -path '.task/design/result/*' | sort)
   if [[ -n "$lines" ]]; then
     DESIGN_LIST=$'--- DESIGN REFERENCE (attached) ---\n'"$lines"
   fi

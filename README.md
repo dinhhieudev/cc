@@ -54,7 +54,7 @@ target's git status. It copies:
 - `.task/` — only if the target has no `.task/` yet (a fresh install; an
   existing `.task/` is left untouched)
 - `bin/{copy-for-web.sh,plan-prompt.md,result-prompt.md,save-plan.sh,save-followup.sh,attach.sh,lean-note.md}`
-  and `bin/lib/{copy-for-web-lib.sh,copy-for-web-design.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
+  and `bin/lib/{copy-for-web-lib.sh,copy-for-web-design.sh,copy-for-web-result.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
 
 It also merges this repo's `CLAUDE.md` (Agent Routing table + hard rules)
 into the target's `CLAUDE.local.md` between marker comments, and adds a
@@ -116,13 +116,21 @@ usage, and `.task/PROJECT.md` should exist and be ready to fill in.
 
 Fill in `.task/PROJECT.md`: `## Project`, `## Tech Stack`,
 `## Architecture Overview`, `## Key Conventions`, `## Source Layout`,
-`## Important Files`, `## Known Constraints`, and `## Verify Command` — the
-exact shell command (`npm run typecheck`, `swift build`, ...) that
-execute-agent and fix-agent must run before reporting done. `## Language`
-ships pre-filled with `Language: en`; change it to `vi` for Vietnamese
-output. This file is never modified by any agent or skill except the
-`save` skill, which may append bullets you approve in Step 5 — otherwise
-you own it.
+`## Important Files`, `## Known Constraints`, and the verify commands —
+`## Codegen / Setup Command` (regenerates code or fetches dependencies,
+run before type check when the change touches models, dependencies, l10n
+strings, or assets — e.g. `dart run build_runner build`, `pod install`),
+`## Type Check Command` (fast, required), `## Build Command` (gated by an
+optional `Build policy: native-only|always|never` line, default
+`native-only` — builds only when native config, dependencies, codegen,
+platform files, or build settings changed), `## Test Command`, and
+`## Device Smoke Test Command`. The last three accept either one command
+or one line per platform (`ios: ...` / `android: ...`); when a task
+affects both, iOS runs first and Android runs only if the change is
+Android-specific. `## Language` ships pre-filled with `Language: en`;
+change it to `vi` for Vietnamese output. This file is never modified by
+any agent or skill except the `save` skill, which may append bullets you
+approve in Step 5 — otherwise you own it.
 
 When `Language: vi`, `bin/copy-for-web.sh` also appends a line to the web
 prompt (both planning and result-review payloads) asking the AI web to
@@ -288,11 +296,16 @@ Then tell Claude `run execute` (or `chạy execute`) — main context dispatches
 execute-agent reads `PROJECT.md`, `overview.md`, `plan.md`, checks
 `## AC Coverage` against every Acceptance Criterion, and escalates instead
 of guessing on a blocking `## Open Questions` entry, an architectural
-conflict, or anything security-sensitive. It implements `## Steps` in order,
-runs the `## Verify Command` from `PROJECT.md` (up to 3 attempts), and
-writes `.task/implementation.md` (`## Changes`, `## Deviations from Plan`,
+conflict, anything security-sensitive, or a new dependency/permission/
+entitlement/manifest change the plan doesn't list. It implements `## Steps`
+in order, then runs codegen/setup (when relevant), type check, build
+(gated by `Build policy:`), and tests/device smoke — one command per
+platform when configured, iOS first — up to 3 attempts, and writes
+`.task/implementation.md` (`## Changes`, `## Deviations from Plan`,
 `## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`), budget
-≤ 5,000 characters. No commit — the workflow doesn't touch git.
+≤ 5,000 characters. For UI tasks, the Manual Test Checklist asks you to
+save result screenshots into `.task/design/result/`. No commit — the
+workflow doesn't touch git.
 
 For the dark-mode example, an illustrative `## Changes` line:
 `- lib/settings/settings_screen.dart: added dark-mode toggle, persists via SharedPreferences`
@@ -316,7 +329,15 @@ chat. It builds a payload from `.task/implementation.md` and
 `bin/result-prompt.md`, which asks the web model to list gaps against the
 plan/ACs and, if follow-up work is needed, output body-only follow-up
 instructions ready to paste. You can add your own manual test findings below
-the pasted report before sending. Oversized payloads split FOLLOW-UPS then
+the pasted report before sending. If you saved screenshots to
+`.task/design/result/`, they're attached automatically (listed under
+`--- RESULT SCREENSHOTS (attached) ---`) and compared against the design
+reference by `bin/result-prompt.md`. Add `--diff` to also attach a
+filtered `git diff` (tracked + untracked changes, excluding `.task/`,
+lockfiles, `.pbxproj`, and generated files) as `.task/web/changes.diff.txt`,
+capped at `WEB_DIFF_MAX_BYTES` (100,000 bytes by default) — off by default
+since diffs are often too long; it warns instead of failing outside a git
+repo or when there's nothing to diff. Oversized payloads split FOLLOW-UPS then
 IMPLEMENTATION to `.task/web/` attachments. Then run `bin/save-followup.sh`
 (no arguments) to append the clipboard as the next `## Follow-up N` — it
 warns if the previous one isn't yet marked Applied. Then tell Claude
@@ -380,11 +401,15 @@ via the environment variable):
 | `.task/implementation.md` | ≤ 5,000 chars |
 | each `## Follow-up N — Applied` section | ≤ 1,200 chars |
 | `.task/PROJECT.md` (typical) | ~5,000 chars |
-| planning prompt (`bin/plan-prompt.md`) | ~2,500 chars |
+| planning prompt (`bin/plan-prompt.md`) | ~3,500 chars |
 | **Total per web message** | **25,000 chars** |
 
 Whatever doesn't fit is split into attachment files under `.task/web/` by
 `bin/copy-for-web.sh` — attach them in the web chat yourself.
+
+Every `bin/copy-for-web.sh` run also writes the exact payload to
+`.task/web/_message.md` — paste it by hand when driving the session
+remotely without clipboard access.
 
 ## Directory structure
 
@@ -408,6 +433,7 @@ Whatever doesn't fit is split into attachment files under `.task/web/` by
 │       ├── copy-for-web-lean.sh
 │       ├── copy-for-web-lib.sh
 │       ├── copy-for-web-modes.sh
+│       ├── copy-for-web-result.sh
 │       ├── install-untracked-lib.sh
 │       └── save-plan-lib.sh
 ├── .claude/

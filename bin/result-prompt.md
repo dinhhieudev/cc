@@ -21,6 +21,11 @@ For mobile work, treat skipped platform/flavor builds, device smoke tests,
 permission/lifecycle checks, accessibility/localization checks, and
 upgrade testing as explicit gaps when they are relevant to the changed behavior.
 
+If RESULT SCREENSHOTS are attached, compare them against the design
+reference from earlier in this conversation and list visual mismatches.
+If a CODE DIFF is attached, review it against the plan's Steps; otherwise
+rely on the report.
+
 Some sections below may be provided as attached files instead of pasted
 inline — read them too.
 

@@ -140,6 +140,24 @@
 - Tablet/foldable layouts not yet supported — phone-only for now
 -->
 
+## Codegen / Setup Command
+
+<!-- Command that regenerates code or fetches dependencies before type check. -->
+<!-- Run BEFORE type check whenever the change touches models/serialization,
+     dependencies, l10n strings, assets, or adds files needing registration. -->
+<!-- Examples:
+- dart run build_runner build --delete-conflicting-outputs
+- flutter pub get
+- flutter gen-l10n
+- pod install
+-->
+<!-- New file / asset registration: note here how new source files/assets must
+     be registered, if the project needs it. Examples:
+- Non-SPM iOS: add new files to the .pbxproj (Xcode project)
+- Flutter: register new assets in pubspec.yaml
+- iOS: add new images to Assets.xcassets
+-->
+
 ## Type Check Command
 
 <!-- Fast command that proves the codebase type-checks. Run after every attempt. -->
@@ -153,6 +171,19 @@
 ## Build Command
 
 <!-- Full build command (slower). Run after type check passes. Skip if empty. -->
+<!-- Optional policy line (own line, like "Language: en"):
+Build policy: native-only | always | never
+- native-only (default when this line is absent): run the build only when
+  the change touches native config, dependencies, codegen, platform files,
+  or build settings; otherwise record "skipped (policy)".
+- always: run the build on every attempt.
+- never: never run the build; record "skipped (policy)".
+Native iOS projects have no cheap type check — consider policy "always", or
+put a simulator build in the Type Check Command slot instead. -->
+<!-- May hold one line per platform instead of a single command:
+ios: <command>
+android: <command>
+A single unprefixed line is still valid for a single-platform project. -->
 <!-- Examples:
 - flutter build apk --debug
 - xcodebuild -scheme App -destination 'generic/platform=iOS' build
@@ -161,14 +192,18 @@
 ## Test Command
 
 <!-- Test suite command. Run after a successful build when present. Skip if empty. -->
+<!-- May hold one line per platform (ios: <command> / android: <command>);
+     a single unprefixed line is still valid for a single-platform project. -->
 <!-- Examples:
 - flutter test
-- xcodebuild test -scheme AppTests -destination 'platform=iOS Simulator,name=iPhone 16'
+- xcodebuild test -scheme AppTests -destination 'platform=iOS Simulator,name=<simulator from Device Matrix>'
 -->
 
 ## Device Smoke Test Command
 
 <!-- Optional command for emulator/simulator smoke tests or scripted UI tests. -->
+<!-- May hold one line per platform (ios: <command> / android: <command>);
+     a single unprefixed line is still valid for a single-platform project. -->
 <!-- Examples:
 - maestro test .maestro/smoke.yaml
 - xcodebuild test -scheme AppUITests -destination 'platform=iOS Simulator,...'

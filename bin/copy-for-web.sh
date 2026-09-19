@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/copy-for-web-lib.sh"
 source "$SCRIPT_DIR/lib/copy-for-web-design.sh"
+source "$SCRIPT_DIR/lib/copy-for-web-result.sh"
 source "$SCRIPT_DIR/lib/copy-for-web-modes.sh"
 source "$SCRIPT_DIR/lib/copy-for-web-lean.sh"
 source "$SCRIPT_DIR/lib/copy-for-web-handoff.sh"
@@ -12,7 +13,7 @@ LIMIT="${WEB_CHAR_LIMIT:-25000}"
 
 usage() {
   cat <<'EOF'
-Usage: copy-for-web.sh [result | --lean | handoff] [--split]
+Usage: copy-for-web.sh [result [--diff] | --lean | handoff] [--split]
 
 Every mode's payload starts with a one-line header ("[claude++ task
 <id>-<name> — <project>]") so pasting into a stale web chat is obvious.
@@ -29,7 +30,14 @@ those too so the web planner can see the reference screenshots.
 
 result: builds the result-review payload from .task/implementation.md
 and .task/followups.md (if it has real content), prefixed with the
-result prompt (bin/result-prompt.md).
+result prompt (bin/result-prompt.md). Files under .task/design/result/
+(human-captured screenshots of the built feature) are attached the same
+way, under "--- RESULT SCREENSHOTS (attached) ---". --diff (only valid
+with result, off by default) attaches a filtered, size-capped git diff
+of tracked + untracked changes as .task/web/changes.diff.txt, excluding
+.task/, lockfiles, .pbxproj, and generated files (cap: WEB_DIFF_MAX_BYTES,
+default 100000 bytes); warns instead of failing outside a git repo or
+when there's nothing left to diff.
 
 --lean: builds a lean planning payload with no pre-built codebase
 context — .task/PROJECT.md (if substantive), .task/overview.md, and a
@@ -65,6 +73,10 @@ references them by name — attach those files in the web chat yourself.
 above pairs to attachments regardless of size. Warns if the message
 still exceeds 85% of the limit.
 
+Every mode also writes the exact clipboard payload to
+.task/web/_message.md, for pasting by hand when driving the session
+remotely (no clipboard access).
+
 Must be run from the root of a project that has a .task/ directory.
 
 Options:
@@ -74,6 +86,7 @@ EOF
 
 MODE="plan"
 FORCE_SPLIT=0
+WANT_DIFF=0
 for arg in "$@"; do
   case "$arg" in
     -h|--help) usage; exit 0 ;;
@@ -90,9 +103,15 @@ for arg in "$@"; do
       fi
       MODE="lean" ;;
     --split) FORCE_SPLIT=1 ;;
+    --diff) WANT_DIFF=1 ;;
     *) echo "Error: unrecognized argument '$arg'." >&2; usage >&2; exit 1 ;;
   esac
 done
+
+if [[ "$WANT_DIFF" -eq 1 && "$MODE" != "result" ]]; then
+  echo "Error: --diff is only valid with 'result'." >&2
+  exit 1
+fi
 
 if [[ ! -d .task ]]; then
   echo "Error: no .task/ directory found here. Run this from the project root." >&2
@@ -150,6 +169,9 @@ if [[ "$TOTAL_CHARS" -gt "$WARN_AT" ]]; then
   echo "Section breakdown:" >&2
   print_breakdown
 fi
+
+printf '%s\n' "$PAYLOAD" > "$WEB_DIR/_message.md"
+echo "Message also written to .task/web/_message.md" >&2
 
 copy_to_clipboard "$PAYLOAD"
 

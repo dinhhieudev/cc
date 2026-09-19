@@ -53,7 +53,7 @@ dựa vào `.gitignore` để giữ mọi thứ nó cài đặt ngoài git statu
 - `.task/` — chỉ khi dự án đích chưa có `.task/` (cài mới hoàn toàn; nếu đã
   có `.task/` thì giữ nguyên không đụng vào)
 - `bin/{copy-for-web.sh,plan-prompt.md,result-prompt.md,save-plan.sh,save-followup.sh,attach.sh,lean-note.md}`
-  và `bin/lib/{copy-for-web-lib.sh,copy-for-web-design.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
+  và `bin/lib/{copy-for-web-lib.sh,copy-for-web-design.sh,copy-for-web-result.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
 
 Nó cũng gộp `CLAUDE.md` của repo này (bảng Agent Routing + các hard rules)
 vào `CLAUDE.local.md` của dự án đích, giữa các marker comment, và thêm một
@@ -115,12 +115,21 @@ dẫn sử dụng, và `.task/PROJECT.md` phải tồn tại, sẵn sàng để 
 
 Điền vào `.task/PROJECT.md`: `## Project`, `## Tech Stack`,
 `## Architecture Overview`, `## Key Conventions`, `## Source Layout`,
-`## Important Files`, `## Known Constraints`, và `## Verify Command` — lệnh
-shell chính xác (`npm run typecheck`, `swift build`, ...) mà execute-agent
-và fix-agent phải chạy trước khi báo cáo hoàn thành. `## Language` mặc định
-sẵn `Language: en`; đổi thành `vi` để xuất tiếng Việt. File này không bao
-giờ bị agent nào sửa; chỉ skill `save` mới được nối thêm các gợi ý bạn đã
-duyệt ở Bước 5 — ngoài ra bạn tự quản lý nó.
+`## Important Files`, `## Known Constraints`, và các lệnh verify —
+`## Codegen / Setup Command` (sinh code hoặc tải dependency, chạy trước
+type check khi thay đổi đụng tới model, dependency, chuỗi l10n, hoặc
+asset — vd: `dart run build_runner build`, `pod install`),
+`## Type Check Command` (nhanh, bắt buộc), `## Build Command` (bị gán
+bởi một dòng tuỳ chọn `Build policy: native-only|always|never`, mặc
+định `native-only` — chỉ build khi thay đổi đụng tới cấu hình native,
+dependency, codegen, file platform, hoặc build settings), `## Test
+Command`, và `## Device Smoke Test Command`. Ba mục cuối nhận một lệnh
+duy nhất hoặc một dòng cho mỗi platform (`ios: ...` / `android: ...`);
+khi task đụng tới cả hai, iOS chạy trước và Android chỉ chạy nếu thay
+đổi là đặc thù Android. `## Language` mặc định sẵn `Language: en`; đổi
+thành `vi` để xuất tiếng Việt. File này không bao giờ bị agent nào sửa;
+chỉ skill `save` mới được nối thêm các gợi ý bạn đã duyệt ở Bước 5 —
+ngoài ra bạn tự quản lý nó.
 
 Khi `Language: vi`, `bin/copy-for-web.sh` nối thêm một dòng vào prompt web
 (cả payload lập kế hoạch lẫn payload review kết quả) yêu cầu AI web trả lời
@@ -285,11 +294,16 @@ thẳng **execute-agent** mà không tự đọc `plan.md`.
 execute-agent đọc `PROJECT.md`, `overview.md`, `plan.md`, đối chiếu
 `## AC Coverage` với từng Acceptance Criterion, và dừng lại để báo cáo thay
 vì đoán mò khi gặp một mục `## Open Questions` gây tắc nghẽn, xung đột kiến
-trúc, hoặc bất cứ gì nhạy cảm về bảo mật. Nó triển khai `## Steps` theo thứ
-tự, chạy `## Verify Command` từ `PROJECT.md` (tối đa 3 lần thử), và viết
+trúc, bất cứ gì nhạy cảm về bảo mật, hoặc một dependency/permission/
+entitlement/thay đổi manifest mới mà plan không liệt kê. Nó triển khai
+`## Steps` theo thứ tự, rồi chạy codegen/setup (khi cần), type check,
+build (bị gán bởi `Build policy:`), và test/device smoke — mỗi platform
+một lệnh khi có cấu hình, iOS trước — tối đa 3 lần thử, và viết
 `.task/implementation.md` (`## Changes`, `## Deviations from Plan`,
 `## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`), giới
-hạn ≤ 5.000 ký tự. Không commit — workflow không đụng vào git.
+hạn ≤ 5.000 ký tự. Với task UI, Manual Test Checklist yêu cầu bạn lưu ảnh
+kết quả vào `.task/design/result/`. Không commit — workflow không đụng
+vào git.
 
 Với ví dụ dark-mode, một dòng `## Changes` minh hoạ:
 `- lib/settings/settings_screen.dart: added dark-mode toggle, persists via SharedPreferences`
@@ -313,7 +327,15 @@ web chat. Nó dựng payload từ `.task/implementation.md` và
 yêu cầu model web liệt kê các vấn đề so với plan/AC và, nếu cần follow-up,
 xuất ra hướng dẫn follow-up chỉ-phần-thân sẵn để dán. Bạn có thể thêm kết
 quả kiểm thử thủ công của riêng mình vào bên dưới báo cáo trước khi gửi.
-Payload quá lớn sẽ tách FOLLOW-UPS rồi tới IMPLEMENTATION thành file đính
+Nếu bạn đã lưu ảnh vào `.task/design/result/`, chúng được tự động đính kèm
+(liệt kê dưới `--- RESULT SCREENSHOTS (attached) ---`) và được
+`bin/result-prompt.md` đối chiếu với ảnh thiết kế tham khảo. Thêm `--diff`
+để đính kèm luôn một `git diff` đã lọc (thay đổi tracked + untracked,
+loại trừ `.task/`, lockfile, `.pbxproj`, và file sinh tự động) dưới dạng
+`.task/web/changes.diff.txt`, giới hạn `WEB_DIFF_MAX_BYTES` (mặc định
+100.000 byte) — mặc định tắt vì diff thường quá dài; nó cảnh báo thay vì
+báo lỗi khi không phải git repo hoặc không có gì để diff. Payload quá lớn
+sẽ tách FOLLOW-UPS rồi tới IMPLEMENTATION thành file đính
 kèm trong `.task/web/`. Sau đó chạy `bin/save-followup.sh` (không tham số)
 để nối clipboard thành `## Follow-up N` tiếp theo — nó cảnh báo nếu cái
 trước chưa được đánh dấu Applied. Rồi bảo Claude `chạy fix` (hoặc
@@ -377,11 +399,15 @@ biến môi trường):
 | `.task/implementation.md` | ≤ 5.000 ký tự |
 | mỗi mục `## Follow-up N — Applied` | ≤ 1.200 ký tự |
 | `.task/PROJECT.md` (điển hình) | ~5.000 ký tự |
-| planning prompt (`bin/plan-prompt.md`) | ~2.500 ký tự |
+| planning prompt (`bin/plan-prompt.md`) | ~3.500 ký tự |
 | **Tổng mỗi tin nhắn web** | **25.000 ký tự** |
 
 Phần nào không vừa sẽ được `bin/copy-for-web.sh` tách thành file đính kèm
 trong `.task/web/` — tự bạn đính kèm chúng trong web chat.
+
+Mỗi lần chạy `bin/copy-for-web.sh` cũng ghi nguyên văn payload vào
+`.task/web/_message.md` — dán tay khi điều khiển phiên làm việc từ xa,
+không có clipboard.
 
 ## Cấu trúc thư mục
 
@@ -405,6 +431,7 @@ trong `.task/web/` — tự bạn đính kèm chúng trong web chat.
 │       ├── copy-for-web-lean.sh
 │       ├── copy-for-web-lib.sh
 │       ├── copy-for-web-modes.sh
+│       ├── copy-for-web-result.sh
 │       ├── install-untracked-lib.sh
 │       └── save-plan-lib.sh
 ├── .claude/

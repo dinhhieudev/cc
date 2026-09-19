@@ -52,6 +52,7 @@ run_lean_mode() {
   fi
   OVERVIEW_SECTION=$'--- OVERVIEW ---\n'"$(cat .task/overview.md)"
   PROJECT_DISPLAY="$PROJECT_SECTION"
+  [[ -n "$PROJECT_DISPLAY" ]] && PROJECT_DISPLAY="$(printf '%s' "$PROJECT_DISPLAY" | strip_comments /dev/stdin)"
 
   FULL_TREE="$(build_file_tree)"
   TREE_TEXT="$FULL_TREE"

@@ -103,10 +103,10 @@ In `.task/index.md`, update the Active Task section: ID = count of `.task/done/`
 
 Pasted into the same web chat, same 25,000-character message — keep it dense, no filler. **Budget:
 `.task/context.md` itself must be ≤ 12,000 characters** (check with `wc -m .task/context.md` before
-finishing). The rest of the message is shared by `.task/PROJECT.md` (~5,000 chars),
-`.task/overview.md`, and the planning prompt (~2,500 chars). If over, compress: drop low-value
-detail, summarize files instead of quoting them, keep code excerpts only where essential. Use this
-structure:
+finishing). The rest of the message is shared by `.task/PROJECT.md` (~5,000 chars, pasted with its
+HTML comments stripped), `.task/overview.md`, and the planning prompt (~3,500 chars). If over,
+compress: drop low-value detail, summarize files instead of quoting them, keep code excerpts only
+where essential. Use this structure:
 
 ```
 # Technical Context
@@ -118,6 +118,8 @@ Describe only the architecture relevant to this task.
 For mobile tasks, state affected platforms, minimum supported OS/API,
 environment/flavor/scheme, and relevant native configuration or manifest
 files. Note platform-specific behavior that the planner must preserve.
+List affected platforms explicitly as `ios`, `android`, or both —
+execute-agent uses this to pick which per-platform verify commands run.
 Omit for non-mobile tasks.
 
 ## Design Spec
@@ -185,9 +187,9 @@ read in full — summarize/reference these above instead of quoting them:
 - relative/path — reason (≤ 8 words)
 
 Paths relative to the project root, no absolute paths, no `..`, no
-secrets/.env/generated files/lockfiles. `None` if no file needs full
-attachment. `bin/copy-for-web.sh` collects these into `.task/web/` as
-attachments for the web chat.
+secrets/.env/generated files/lockfiles. Write paths bare — no backticks,
+no quotes. `None` if no file needs full attachment. `bin/copy-for-web.sh`
+collects these into `.task/web/` as attachments for the web chat.
 ```
 
 ## Rules

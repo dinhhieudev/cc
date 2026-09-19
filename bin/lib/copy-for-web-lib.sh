@@ -123,6 +123,7 @@ extract_attach_paths() {
       idx = index(line, " — ")
       if (idx > 0) { line = substr(line, 1, idx - 1) }
       gsub(/^[ \t]+|[ \t]+$/, "", line)
+      gsub(/^`+|`+$/, "", line)
       if (line != "") print line
     }
   ' "$1"

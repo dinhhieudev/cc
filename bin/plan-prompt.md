@@ -10,8 +10,10 @@ Produce a plan with these sections, in this order:
 - `## Summary` — approach, 5 lines max.
 - `## Decisions to Review` — key choices, rejected alternatives, risks.
   Every decision listed must carry an actual reason (why this over the
-  rejected alternative), not just the choice. Write `None` if there are
-  none.
+  rejected alternative), not just the choice. Any new third-party
+  dependency, permission, entitlement, or native manifest/Info.plist
+  change must be listed here with its reason — the executor stops on one
+  that isn't listed. Write `None` if there are none.
 - `## AC Coverage` — for each Acceptance Criterion in the OVERVIEW below,
   list the step number(s) that cover it; mark any uncovered criterion
   explicitly.
@@ -35,7 +37,8 @@ offline/slow-network behavior, accessibility, minimum OS/API compatibility,
 the configured device matrix, and every affected platform/flavor/scheme.
 For release-sensitive work, include versioning, migration, feature-flag,
 signing, artifact, and crash-symbol implications in the relevant ACs or
-Out of Scope.
+Out of Scope. Steps that need codegen/setup or new-file registration should
+say so in Notes.
 
 Style: terse, sentence fragments are fine, do not restate context already
 given below. Include a code snippet only if essential to remove
