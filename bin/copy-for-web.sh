@@ -23,16 +23,18 @@ has real content), .task/overview.md, and .task/context.md, prefixed
 with the planning prompt (bin/plan-prompt.md), and copies it to the
 clipboard for pasting into a ChatGPT/Gemini web conversation. If
 .task/design/ exists and has files, every file in it is also copied
-into .task/web/ (same secret-filename guard and 200 KB size cap as
-bin/attach.sh — the secret-filename guard exempts image files) and
-listed under a "--- DESIGN REFERENCE (attached) ---" marker — attach
-those too so the web planner can see the reference screenshots.
+into .task/web/ (same secret-filename guard, credential content scan,
+and 200 KB size cap as bin/attach.sh — the secret-filename guard
+exempts image files) and listed under a "--- DESIGN REFERENCE
+(attached) ---" marker — attach those too so the web planner can see
+the reference screenshots.
 
 result: builds the result-review payload from .task/implementation.md
 and .task/followups.md (if it has real content), prefixed with the
 result prompt (bin/result-prompt.md). Files under .task/design/result/
-(human-captured screenshots of the built feature) are attached the same
-way, under "--- RESULT SCREENSHOTS (attached) ---". --diff (only valid
+(human-captured screenshots of the built feature) are attached under
+"--- RESULT SCREENSHOTS (attached) ---", with the same secret-filename
+guard and 200 KB size cap (no credential content scan). --diff (only valid
 with result, off by default) attaches a filtered, size-capped git diff
 of tracked + untracked changes as .task/web/changes.diff.txt, excluding
 .task/, lockfiles, .pbxproj, and generated files (cap: WEB_DIFF_MAX_BYTES,

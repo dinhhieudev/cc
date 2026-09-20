@@ -8,6 +8,21 @@ codebase, triển khai, sửa lỗi). Web chat lo phần suy nghĩ: lập kế h
 review kết quả. Claude Code thu thập context gọn và thực thi chính xác, trên
 các subagent `sonnet` rẻ, để giữ mức tiêu tốn token của Claude ở mức thấp.
 
+## Bắt đầu nhanh
+
+Vòng lặp thông thường, mỗi dòng một bước — chi tiết ở các bước đánh số bên
+dưới. `--lean` (Bước 1) là biến thể rẻ hơn cho codebase nhỏ hoặc đã quen.
+
+| # | Bạn | Claude / script |
+|---|---|---|
+| 1 | `task: <yêu cầu>` | context-agent viết `overview.md` + `context.md` |
+| 2 | `bin/copy-for-web.sh`, dán vào một web chat mới | web chat trả về kế hoạch |
+| 3 | `save plan` | execute-agent chạy kế hoạch |
+| 4 | Kiểm thử thủ công | — |
+| 5 | Sửa nhỏ: `fix: ...` — khó hơn: `bin/copy-for-web.sh result`, rồi `bin/save-followup.sh` | đã xếp vào `.task/followups.md` — chưa chạy gì cho đến dòng 6 |
+| 6 | `run fix` | fix-agent áp dụng follow-up |
+| 7 | `save task` | skill `save` lưu trữ task |
+
 ## Vì sao chia như vậy
 
 Web chat là bộ não, có quota riêng tách biệt với Claude — nó đảm nhận việc
@@ -22,39 +37,49 @@ toàn do con người quyết định.
 
 Mọi thứ gửi lên web chat đều bị giới hạn số ký tự (một tin nhắn web tối đa
 `WEB_CHAR_LIMIT`, mặc định 25.000 ký tự), phần nào không vừa sẽ được tách
-thành file đính kèm trong `.task/web/` để bạn tự đính kèm. Bất cứ gì đính
-kèm theo cách này — danh sách `## Files to Attach` từ `context.md`, ảnh
-tham khảo trong `.task/design/`, và file gửi qua `bin/attach.sh` — đều bị
-kiểm tra qua một bộ lọc tên file (từ chối `.env`, `.pem`/`.key`, SSH key,
-`.npmrc`/`.netrc`, và tên chứa secret/credential/password/apikey/token, trừ
-file ảnh) và một lượt quét nội dung tìm các dạng credential phổ biến (AWS
-key, PEM header, Bearer token, mẫu token của OpenAI/Slack/GitHub); file
-khớp bị từ chối kèm cảnh báo ra stderr và không bao giờ vào `.task/web/`.
-Ảnh kết quả (`.task/design/result/`) và file đính kèm `--diff` tuỳ chọn chỉ
-qua bộ lọc tên file và giới hạn kích thước, không qua quét nội dung. Cả hai
-lớp lọc đều là heuristic, không phải đảm bảo tuyệt đối — bạn vẫn phải tự
-chịu trách nhiệm về những gì mình đính kèm.
+thành file đính kèm trong `.task/web/` để bạn tự đính kèm.
 
-**Bình thường vs `--lean` (Bước 1):**
+## Điều gì được gửi lên web chat
 
-| Codebase | Đường dẫn |
-|---|---|
-| Lớn hoặc chưa quen | Bình thường (`task: ...`) — `context.md` đầy đủ hơn cho planner |
-| Nhỏ, hoặc bạn đã biết rõ khu vực | `--lean` (`task (lean): ...`) — tiết kiệm token Claude, đổi lại một vòng qua lại thêm |
+Mọi file được gửi lên web chat dưới dạng đính kèm — danh sách
+`## Files to Attach` từ `context.md`, ảnh tham khảo trong
+`.task/design/`, và file gửi qua
+`bin/attach.sh` — đều bị kiểm tra qua một bộ lọc tên file (từ chối `.env`,
+`.pem`/`.key`, SSH key, `.npmrc`/`.netrc`, và tên chứa
+secret/credential/password/apikey/token, trừ file ảnh) và một lượt quét nội
+dung tìm các dạng credential phổ biến (AWS key, PEM header, Bearer token,
+mẫu token của OpenAI/Slack/GitHub); file khớp bị từ chối kèm cảnh báo ra
+stderr và không bao giờ vào `.task/web/`. `bin/attach.sh --force-secret` chỉ
+ghi đè bộ lọc tên file cho lần gọi đó — lượt quét nội dung không bao giờ ghi
+đè được. Ảnh kết quả (`.task/design/result/`) và file đính kèm `--diff` tuỳ
+chọn chỉ qua bộ lọc tên file và giới hạn kích thước, không qua quét nội
+dung. Cả hai lớp lọc đều là heuristic, không phải đảm bảo tuyệt đối — bạn
+vẫn phải tự chịu trách nhiệm về những gì mình đính kèm.
 
-**Sửa trực tiếp vs vòng qua web (follow-up ở Bước 4):**
+## Điều kiện tiên quyết
 
-| Follow-up | Đường dẫn |
-|---|---|
-| Lỗi nhỏ, rõ ràng, bạn đã biết cách mô tả | Nhắn thẳng cho Claude: `fix: ...` |
-| Lỗi chưa rõ, hoặc plan còn thiếu gì đó cần cân nhắc | Đi qua web: `bin/copy-for-web.sh result` |
+- **bash** — mọi script ở đây đều bắt đầu bằng
+  `#!/usr/bin/env bash`.
+- **git** — `bin/install-untracked.sh` yêu cầu đường dẫn đích phải đã
+  là một git repository; nếu không, nó sẽ dừng lại.
+- **Một công cụ clipboard.** `bin/copy-for-web.sh` copy payload qua
+  `pbcopy`, dự phòng bằng `xclip` rồi `xsel`; nếu không tìm thấy công
+  cụ nào, nó in payload ra stdout thay vì báo lỗi.
+  `bin/save-plan.sh`/`bin/save-followup.sh` đọc clipboard theo cùng
+  cách (`pbpaste`, rồi `xclip`, rồi `xsel`), nhưng báo lỗi và dừng nếu
+  không tìm thấy công cụ nào — `save-plan.sh --stdin` xử lý trường hợp
+  đó cho đường plan; còn lại thì dán plan hoặc follow-up thẳng vào
+  cuộc hội thoại Claude thay thế. macOS không cần cài thêm gì; Linux
+  cần cài `xclip` hoặc `xsel`. Nếu hoàn toàn không có công cụ
+  clipboard nào, `.task/web/_message.md` là lối thoát — xem
+  `## Giới hạn ký tự`.
 
 ## Cài đặt vào một dự án
 
 ### Phương án A — tự động, không track git
 
 ```
-bash bin/install-untracked.sh [--lang en|vi] [--upgrade] /path/to/target
+bash bin/install-untracked.sh [--lang en|vi] [--upgrade] <target-project-path>
 ```
 
 `<target-project-path>` phải đã tồn tại và là một git repository — script
@@ -98,6 +123,23 @@ Nếu `.claude/agents/*` hoặc `.claude/skills/save/` đã tồn tại ở dự
 với nội dung khác, script sẽ dừng trước khi copy bất cứ gì, trừ khi có
 `--upgrade` — xem Phương án B, mục c) bên dưới.
 
+#### Gỡ cài đặt
+
+Không có cờ `--uninstall`. Để gỡ một bản cài không-track-git bằng tay:
+
+- Xoá các đường dẫn đã copy: `.claude/agents/{context-agent.md,
+  execute-agent.md,fix-agent.md}`, `.claude/instructions/`,
+  `.claude/skills/save/`, và các file `bin/` + `bin/lib/` được liệt kê
+  ở mục "Nó sao chép:" bên trên.
+- Xoá block nằm giữa `<!-- claude++ workflow: begin -->` và
+  `<!-- claude++ workflow: end -->` trong `CLAUDE.local.md` (xoá luôn
+  cả file nếu không còn gì khác trong đó).
+- Xoá block nằm giữa `# claude++ workflow: begin` và
+  `# claude++ workflow: end` trong `.git/info/exclude`.
+- Tự bạn quyết định về `.task/` — nơi lưu lịch sử task của dự án
+  (`.task/done/`, `index.md`), nên trình cài đặt không bao giờ xoá nó;
+  giữ lại, lưu trữ riêng, hay xoá tuỳ bạn.
+
 ### Phương án B — thủ công, có track git
 
 Dùng khi bạn muốn commit các file workflow vào repo đích thay vì gitignore
@@ -134,23 +176,38 @@ dẫn sử dụng, và `.task/PROJECT.md` phải tồn tại, sẵn sàng để 
 
 ## Thiết lập ban đầu (chỉ một lần)
 
-Điền vào `.task/PROJECT.md`: `## Project`, `## Tech Stack`,
-`## Architecture Overview`, `## Key Conventions`, `## Source Layout`,
-`## Important Files`, `## Known Constraints`, và các lệnh verify —
-`## Codegen / Setup Command` (sinh code hoặc tải dependency, chạy trước
-type check khi thay đổi đụng tới model, dependency, chuỗi l10n, hoặc
-asset — vd: `dart run build_runner build`, `pod install`),
-`## Type Check Command` (nhanh, bắt buộc), `## Build Command` (bị gán
-bởi một dòng tuỳ chọn `Build policy: native-only|always|never`, mặc
-định `native-only` — chỉ build khi thay đổi đụng tới cấu hình native,
-dependency, codegen, file platform, hoặc build settings), `## Test
-Command`, và `## Device Smoke Test Command`. Ba mục cuối nhận một lệnh
-duy nhất hoặc một dòng cho mỗi platform (`ios: ...` / `android: ...`);
-khi task đụng tới cả hai, iOS chạy trước và Android chỉ chạy nếu thay
-đổi là đặc thù Android. `## Language` mặc định sẵn `Language: en`; đổi
-thành `vi` để xuất tiếng Việt. File này không bao giờ bị agent nào sửa;
-chỉ skill `save` mới được nối thêm các gợi ý bạn đã duyệt ở Bước 5 —
-ngoài ra bạn tự quản lý nó.
+Điền vào `.task/PROJECT.md` — tổng cộng 20 mục, theo đúng thứ tự trong template: 14 mục trong bảng dưới đây, cộng 6 mục lệnh verify/ngôn ngữ được nêu trong đoạn văn sau bảng.
+
+| Mục | Nội dung |
+|---|---|
+| `## Project` | Tên dự án và mô tả một câu |
+| `## Platform` | (Các) platform mobile mà dự án nhắm tới |
+| `## Environment & Build Matrix` | Environment, build variant, scheme/flavor, nguồn API/config |
+| `## Tech Stack` | Ngôn ngữ, framework, công cụ |
+| `## Architecture Overview` | Cấu trúc tổng quan trong 3-5 câu |
+| `## Key Conventions` | Các pattern bắt buộc phải tuân theo |
+| `## Test Convention` | Test nằm ở đâu, framework, chính sách test theo rủi ro |
+| `## Device Matrix` | Simulator/emulator tối thiểu + phạm vi thiết bị thật |
+| `## CI / PR Checks` | Các check bắt buộc trước khi merge |
+| `## Release & Distribution` | Versioning, ký app, phân phối, quy tắc rollback/feature-flag |
+| `## Security & Data Handling` | Những gì không được rời khỏi repo; cách làm sạch payload gửi AI ngoài |
+| `## Source Layout` | Các thư mục chính và nội dung |
+| `## Important Files` | File mà agent thường xuyên cần biết |
+| `## Known Constraints` | Giới hạn cứng mà plan phải tuân theo |
+
+Cộng thêm các lệnh verify — `## Codegen / Setup Command` (sinh code hoặc tải
+dependency, chạy trước type check khi thay đổi đụng tới model, dependency,
+chuỗi l10n, hoặc asset — vd: `dart run build_runner build`, `pod install`),
+`## Type Check Command` (nhanh, bắt buộc), `## Build Command` (bị gán bởi
+một dòng tuỳ chọn `Build policy: native-only|always|never`, mặc định
+`native-only` — chỉ build khi thay đổi đụng tới cấu hình native, dependency,
+codegen, file platform, hoặc build settings), `## Test Command`, và
+`## Device Smoke Test Command`. Ba mục cuối nhận một lệnh duy nhất hoặc một
+dòng cho mỗi platform (`ios: ...` / `android: ...`); khi task đụng tới cả
+hai, iOS chạy trước và Android chỉ chạy nếu thay đổi là đặc thù Android.
+`## Language` mặc định sẵn `Language: en`; đổi thành `vi` để xuất tiếng
+Việt. File này không bao giờ bị agent nào sửa; chỉ skill `save` mới được nối
+thêm các gợi ý bạn đã duyệt ở Bước 5 — ngoài ra bạn tự quản lý nó.
 
 Khi `Language: vi`, `bin/copy-for-web.sh` nối thêm một dòng vào prompt web
 (cả payload lập kế hoạch lẫn payload review kết quả) yêu cầu AI web trả lời
@@ -200,6 +257,17 @@ Lưu ý thêm: dùng chung DerivedData mặc định với một Xcode đang m�
 gây tranh chấp khoá (lock contention) — truyền `-derivedDataPath` trỏ tới
 một thư mục riêng nếu gặp vấn đề này.
 
+**Dự án không phải mobile.** Bảng trên chỉ bao phủ các stack mobile —
+với một dự án web hoặc backend, `## Type Check Command` thường là một
+lệnh lint hoặc compiler check (vd: `eslint .`, `tsc --noEmit`,
+`mypy .`) và `## Test Command` là test runner của dự án (vd:
+`npm test`, `pytest`); `Build policy: never` vẫn là mặc định hợp lý
+khi con người tự lo build/run. Để trống hoặc `—` cho
+`## Device Smoke Test Command`, `## Device Matrix`, và `## Platform` —
+các mục này không áp dụng. Verify pipeline của workflow và template
+`.task/PROJECT.md` được thiết kế mobile-first; các mục ở trên là các
+mục đặc thù cho mobile.
+
 ## Bước 1 — Claude Code: task overview + context
 
 Gõ `task: <yêu cầu>` (bí danh: `skill overview + context: <yêu cầu>`, hoặc
@@ -218,8 +286,10 @@ codebase (qua CodeGraph nếu dự án đích có `.codegraph/`), rồi viết:
   `## Acceptance Criteria`, `## Ambiguities`, `## Notes`), giới hạn ≤ 4.000
   ký tự
 - `.task/context.md` — context kỹ thuật cho người lập kế hoạch (`## Relevant
-  Architecture`, `## Relevant Files`, `## Existing Patterns`,
-  `## Data Flow`, `## Dependencies`, `## Current Behavior`,
+  Architecture`, `## Platform & Build Context` — chỉ task mobile,
+  `## Design Spec` — chỉ khi có kiểm tra Figma, `## Relevant Files`,
+  `## Existing Patterns`, `## Data Flow`, `## Navigation Flow` — chỉ task
+  UI/navigation, `## Dependencies`, `## Current Behavior`,
   `## Important Constraints`, `## Potential Risk Areas`,
   `## Relevant Code Snippets`, `## Unknowns`, `## Files to Attach` — tối đa
   10 đường dẫn), giới hạn ≤ 12.000 ký tự
@@ -228,8 +298,14 @@ codebase (qua CodeGraph nếu dự án đích có `.codegraph/`), rồi viết:
   plan, `executing` khi execute-agent bắt đầu, `fixing` khi một vòng
   follow-up bắt đầu, `done` khi task được lưu.
 
+context-agent cũng grep bảng History trong `.task/index.md` để tìm
+một task trước đó có `## Screen` khớp và, nếu tìm thấy, ghi tên task
+đó vào mục `## Related Task` trong `overview.md` — một lượt tra cứu
+rẻ, best-effort, không bao giờ chặn tiến độ.
+
 **Đường dẫn lean** — cho dự án nhỏ, hoặc khi bạn đã biết rõ khu vực cần sửa: gõ
-`task (lean): <yêu cầu>` (bí danh: `task lean: <yêu cầu>`) thay vì `task:`. context-agent
+`task (lean): <yêu cầu>` (bí danh: `task lean: <yêu cầu>` hoặc `chạy task lean:
+<yêu cầu>`) thay vì `task:`. context-agent
 chỉ viết `.task/overview.md` (spec đầy đủ như bình thường, cùng giới hạn ký tự) từ
 `.task/PROJECT.md`, yêu cầu của bạn, và tối đa 3 file bạn nêu rõ tên — nó không khám phá
 codebase ngoài phạm vi đó, và để nguyên `.task/context.md` ở dạng template rỗng. Cách này
@@ -255,6 +331,11 @@ bin/copy-for-web.sh [--split]
 Không có tham số, nó dựng payload lập kế hoạch — `.task/PROJECT.md` (nếu có
 nội dung thực ngoài dòng Language, đã lọc bỏ HTML comment), `.task/overview.md`,
 `.task/context.md`, kèm prefix là `bin/plan-prompt.md` — và copy vào clipboard.
+Mọi payload đều mở đầu bằng một dòng header —
+`[claude++ task <id>-<name> — <project>]`, dùng ID/Name từ Active
+Task trong `.task/index.md` và tên dự án từ mục `## Project` trong
+`.task/PROJECT.md` (hoặc tên thư mục) — để dễ nhận ra nếu bạn lỡ dán
+vào một web chat đã cũ.
 Nếu payload vượt `WEB_CHAR_LIMIT` (mặc định 25.000, có thể override qua biến
 môi trường), CONTEXT bị tách thành file đính kèm trong `.task/web/` trước,
 rồi tới PROJECT nếu vẫn còn vượt; `--split` ép cả hai thành file đính kèm
@@ -277,32 +358,33 @@ Summary, Decisions to Review, AC Coverage.
 Với ví dụ dark-mode, một đoạn trích minh hoạ (không phải format bắt buộc)
 của những gì trả về có thể trông như sau:
 
-```
-## Decisions to Review
-- Persist the toggle via SharedPreferences, not a new state-management
-  provider — avoids adding a dependency for a single boolean.
+    ## Decisions to Review
+    - Persist the toggle via SharedPreferences, not a new state-management
+      provider — avoids adding a dependency for a single boolean.
 
-## AC Coverage
-- AC1 (toggle visible in Settings): Step 1
-- AC2 (persists across restarts): Step 1
+    ## AC Coverage
+    - AC1 (toggle visible in Settings): Step 1
+    - AC2 (persists across restarts): Step 1
 
-## Steps
-| # | File | Change | Notes |
-|---|---|---|---|
-| 1 | lib/settings/settings_screen.dart | Add dark-mode Switch, wire to ThemeProvider | persists via SharedPreferences |
-```
+    ## Steps
+    | # | File | Change | Notes |
+    |---|---|---|---|
+    | 1 | lib/settings/settings_screen.dart | Add dark-mode Switch, wire to ThemeProvider | persists via SharedPreferences |
 
-**Đường dẫn lean** — sau `bin/copy-for-web.sh --lean` (xem Bước 1), payload thay
-`.task/context.md` bằng một FILE TREE của dự án (`git ls-files`, hoặc `find` đã lọc bớt
-nếu không phải git repo) và thêm `bin/lean-note.md` vào prompt, yêu cầu web planner trả
-lời trước danh sách file nó cần (tối đa 15 đường dẫn từ cây file) trước khi ra kế hoạch.
-Chạy `bin/attach.sh <path> [<path>...]` để copy các file đó vào `.task/web/` (làm phẳng
-tên, in ra bảng ánh xạ và tổng số ký tự; cũng nhận `-` để đọc đường dẫn từ stdin), đính
-kèm chúng trong cùng web chat, rồi xin kế hoạch — sau đó tiếp tục ở Bước 3 như bình
-thường. FILE TREE quá lớn sẽ giảm dần: file gây nhiễu (lockfile, ảnh, `*.min.*`,
-`.task/**`) bị loại trước, rồi gộp thành số đếm theo thư mục `dir/ (N files)`, rồi đính
-kèm toàn bộ cây dưới dạng `.task/web/file-tree.txt`; `--split` ép cả FILE TREE lẫn
-PROJECT thành file đính kèm ngay.
+**Đường dẫn lean** — sau `bin/copy-for-web.sh --lean` (xem Bước 1), payload
+thay `.task/context.md` bằng một FILE TREE của dự án (`git ls-files`, hoặc
+`find` đã lọc bớt nếu không phải git repo) và thêm `bin/lean-note.md` vào
+prompt, yêu cầu web planner trả lời trước danh sách file nó cần (tối đa 15
+đường dẫn từ cây file) trước khi ra kế hoạch. Chạy
+`bin/attach.sh [--force-secret] <path> [<path>...]` để copy các file đó vào
+`.task/web/` (làm phẳng tên, in ra bảng ánh xạ và tổng số ký tự; bỏ qua file
+trên 200 KB; cũng nhận `-` để đọc đường dẫn từ stdin), đính kèm chúng trong
+cùng web chat, rồi xin kế hoạch — sau đó tiếp tục ở Bước 3 như bình thường.
+FILE TREE quá lớn sẽ giảm dần: file gây nhiễu (lockfile, ảnh, `*.min.*`,
+`.task/**`) bị loại trước, rồi gộp thành số đếm theo thư mục
+`dir/ (N files)`, rồi đính kèm toàn bộ cây dưới dạng
+`.task/web/file-tree.txt`; `--split` ép cả FILE TREE lẫn PROJECT thành file
+đính kèm ngay.
 
 Vòng qua lại cụ thể: `task (lean): add a dark-mode toggle to the settings
 screen`, rồi `bin/copy-for-web.sh --lean`. Web có thể trả lời bằng một danh
@@ -356,6 +438,10 @@ còn là placeholder.
 Sau đó bảo Claude `chạy execute` (hoặc `run execute`) — main context dispatch
 thẳng **execute-agent** mà không tự đọc `plan.md`.
 
+Hoặc gõ `lưu plan` (hoặc `save plan` / `plan đã copy`) thay vì tự chạy
+lệnh — main context sẽ tự chạy cùng đường clipboard (cùng bộ kiểm tra) rồi
+dispatch thẳng **execute-agent**, nên bạn không cần gõ thêm `chạy execute`.
+
 execute-agent đọc `PROJECT.md`, `overview.md`, `plan.md`, đối chiếu
 `## AC Coverage` với từng Acceptance Criterion, và dừng lại để báo cáo thay
 vì đoán mò khi gặp một mục `## Open Questions` gây tắc nghẽn, xung đột kiến
@@ -382,10 +468,18 @@ Với ví dụ dark-mode, một dòng `## Changes` minh hoạ:
 Kiểm thử thủ công. Hai đường chính cộng một bước review cục bộ tuỳ chọn,
 lặp lại bao nhiêu lần tuỳ cần:
 
-**Sửa nhỏ/rõ ràng** — nhắn thẳng cho Claude: `làm thêm: ...` / `fix: ...` /
-`add: ...` (hoặc bất kỳ yêu cầu follow-up nào). Main context nối
-`## Follow-up N` (yêu cầu của bạn, nguyên văn) vào `.task/followups.md`, rồi
-dispatch **fix-agent**.
+| Tình huống | Chạy |
+|---|---|
+| Sửa nhỏ, rõ ràng | `fix: ...` |
+| Cần suy nghĩ thật sự | `bin/copy-for-web.sh result` |
+| Muốn có một lượt review cục bộ | `review` |
+| Web chat quá dài | `bin/copy-for-web.sh handoff` |
+
+### Sửa nhỏ/rõ ràng
+
+Nhắn thẳng cho Claude: `làm thêm: ...` / `fix: ...` / `add: ...` (hoặc bất
+kỳ yêu cầu follow-up nào). Main context nối `## Follow-up N` (yêu cầu của
+bạn, nguyên văn) vào `.task/followups.md`, rồi dispatch **fix-agent**.
 
 Với ví dụ dark-mode, giả sử test phát hiện lỗi: `fix: toggling twice
 re-triggers the API call`. fix-agent sửa lỗi rồi nối `## Follow-up 1 —
@@ -397,26 +491,27 @@ cho Android — rồi hoặc dán khoảng 30 frame đầu vào yêu cầu `fix:
 (đường trực tiếp), hoặc ghi ra file và chạy `bin/attach.sh <file>` để
 gửi kèm vòng qua web bên dưới.
 
-**Cần suy nghĩ thật sự** — chạy `bin/copy-for-web.sh result` trong *cùng*
-web chat. Nó dựng payload từ `.task/implementation.md` và
-`.task/followups.md` (nếu có nội dung), kèm prefix `bin/result-prompt.md`,
-yêu cầu model web liệt kê các vấn đề so với plan/AC và, nếu cần follow-up,
-xuất ra hướng dẫn follow-up chỉ-phần-thân sẵn để dán. Bạn có thể thêm kết
-quả kiểm thử thủ công của riêng mình vào bên dưới báo cáo trước khi gửi.
-Nếu bạn đã lưu ảnh vào `.task/design/result/`, chúng được tự động đính kèm
-(liệt kê dưới `--- RESULT SCREENSHOTS (attached) ---`) và được
-`bin/result-prompt.md` đối chiếu với ảnh thiết kế tham khảo. Thêm `--diff`
-để đính kèm luôn một `git diff` đã lọc (thay đổi tracked + untracked,
-loại trừ `.task/`, lockfile, `.pbxproj`, và file sinh tự động) dưới dạng
+### Cần suy nghĩ thật sự
+
+Chạy `bin/copy-for-web.sh result` trong *cùng* web chat. Nó dựng payload từ
+`.task/implementation.md` và `.task/followups.md` (nếu có nội dung), kèm
+prefix `bin/result-prompt.md`, yêu cầu model web liệt kê các vấn đề so với
+plan/AC và, nếu cần follow-up, xuất ra hướng dẫn follow-up chỉ-phần-thân sẵn
+để dán. Bạn có thể thêm kết quả kiểm thử thủ công của riêng mình vào bên
+dưới báo cáo trước khi gửi. Nếu bạn đã lưu ảnh vào `.task/design/result/`,
+chúng được tự động đính kèm (liệt kê dưới
+`--- RESULT SCREENSHOTS (attached) ---`) và được `bin/result-prompt.md` đối
+chiếu với ảnh thiết kế tham khảo. Thêm `--diff` để đính kèm luôn một
+`git diff` đã lọc (thay đổi tracked + untracked, loại trừ `.task/`,
+lockfile, `.pbxproj`, và file sinh tự động) dưới dạng
 `.task/web/changes.diff.txt`, giới hạn `WEB_DIFF_MAX_BYTES` (mặc định
-100.000 byte) — mặc định tắt vì diff thường quá dài; nó cảnh báo thay vì
-báo lỗi khi không phải git repo hoặc không có gì để diff. Payload quá lớn
-sẽ tách FOLLOW-UPS rồi tới IMPLEMENTATION thành file đính
-kèm trong `.task/web/`. Sau đó chạy `bin/save-followup.sh` (không tham số)
-để nối clipboard thành `## Follow-up N` tiếp theo — nó cảnh báo nếu cái
-trước chưa được đánh dấu Applied. Rồi bảo Claude `chạy fix` (hoặc
-`run fix`) — main context dispatch **fix-agent** mà không tự đọc
-`followups.md`.
+100.000 byte) — mặc định tắt vì diff thường quá dài; nó cảnh báo thay vì báo
+lỗi khi không phải git repo hoặc không có gì để diff. Payload quá lớn sẽ
+tách FOLLOW-UPS rồi tới IMPLEMENTATION thành file đính kèm trong
+`.task/web/`. Sau đó chạy `bin/save-followup.sh` (không tham số) để nối
+clipboard thành `## Follow-up N` tiếp theo — nó cảnh báo nếu cái trước chưa
+được đánh dấu Applied. Rồi bảo Claude `chạy fix` (hoặc `run fix`) — main
+context dispatch **fix-agent** mà không tự đọc `followups.md`.
 
 fix-agent ghi lại `## Baseline` chỉ-đọc (sha HEAD + trạng thái working
 tree) giống execute-agent, chỉ đọc mục `## Follow-up N` hiện tại (không đọc
@@ -424,22 +519,24 @@ các vòng trước), áp dụng thay đổi an toàn nhỏ nhất, chạy lại
 (tối đa 3 lần thử), và nối `## Follow-up N — Applied` kèm một dòng
 `Baseline:` — giới hạn ≤ 1.400 ký tự mỗi mục.
 
-**Tuỳ chọn: review cục bộ** — gõ `review` / `review code` / `chạy review`
-bất cứ lúc nào trước một vòng qua web để chạy `/code-review` có sẵn của
-Claude Code trên diff hiện tại của working tree. Không như phần còn lại của
-vòng lặp này, bước này tốn token Claude, nên dùng khi web chat đã cạn quota,
-đã quá dài, hoặc bạn muốn có một lượt review cục bộ trước hoặc thay cho
-`bin/copy-for-web.sh result`.
+### Tuỳ chọn: review cục bộ
 
-**Chat mới** — nếu web chat *cùng* cuộc hội thoại ở trên đã quá dài hoặc mất
-ngữ cảnh, chạy `bin/copy-for-web.sh handoff` thay vì `result` rồi dán vào
-một web chat **mới**. Nó gửi một đoạn giới thiệu ngắn cùng OVERVIEW SUMMARY
-(`## Goal` + `## Acceptance Criteria`), bảng `## Steps` của plan, và vòng
-Follow-up mới nhất (hoặc phần Changes/Deviations của `implementation.md`),
-yêu cầu web xác nhận đã hiểu trước khi tiếp tục — không cần gõ lại ngữ cảnh
-ban đầu. Payload quá lớn sẽ tách OVERVIEW SUMMARY rồi tới CURRENT PLAN STEPS
-thành file đính kèm trong `.task/web/`. Tiếp tục vòng lặp ở trên trong chat
-mới đó.
+Gõ `review` / `review code` / `chạy review` bất cứ lúc nào trước một vòng
+qua web để chạy `/code-review` có sẵn của Claude Code trên diff hiện tại của
+working tree. Không như phần còn lại của vòng lặp này, bước này tốn token
+Claude, nên dùng khi web chat đã cạn quota, đã quá dài, hoặc bạn muốn có một
+lượt review cục bộ trước hoặc thay cho `bin/copy-for-web.sh result`.
+
+### Chat mới
+
+Nếu web chat *cùng* cuộc hội thoại ở trên đã quá dài hoặc mất ngữ cảnh, chạy
+`bin/copy-for-web.sh handoff` thay vì `result` rồi dán vào một web chat
+**mới**. Nó gửi một đoạn giới thiệu ngắn cùng OVERVIEW SUMMARY (`## Goal` +
+`## Acceptance Criteria`), bảng `## Steps` của plan, và vòng Follow-up mới
+nhất (hoặc phần Changes/Deviations của `implementation.md`), yêu cầu web xác
+nhận đã hiểu trước khi tiếp tục — không cần gõ lại ngữ cảnh ban đầu. Payload
+quá lớn sẽ tách OVERVIEW SUMMARY rồi tới CURRENT PLAN STEPS thành file đính
+kèm trong `.task/web/`. Tiếp tục vòng lặp ở trên trong chat mới đó.
 
 Dấu hiệu cụ thể: sau 4-5 vòng follow-up trong cùng web chat, câu trả lời
 bắt đầu chậm hơn hoặc mất chi tiết trước đó — đó là lúc nên chạy
@@ -467,12 +564,35 @@ Gõ `lưu task` (hoặc `save task`). Skill `save`:
   `done`, hoặc `partial` nếu bạn đã xác nhận lưu trữ khi còn follow-up chưa
   áp dụng
 
+Task đã lưu trữ nằm trong `.task/done/{id}-{slug}/`, mỗi thư mục chứa
+bản copy năm file của task đó — `overview.md`, `context.md`,
+`plan.md`, `implementation.md`, và `followups.md`. Bảng History trong
+`.task/index.md` thêm một dòng cho mỗi task đã hoàn thành — `ID`,
+`Name`, `Screen`, `Date`, `Status` — nên bảng đó, cùng các thư mục lưu
+trữ mà nó trỏ tới, là nơi để xem lại các task trước đây.
+
 Với ví dụ dark-mode, một gợi ý candidate có thể là: "Key Conventions:
 dark-mode state persists via SharedPreferences, not a global provider" —
 bạn trả lời `add it` để duyệt, hoặc `skip` để từ chối.
 
 Không commit — bạn tự quản lý git; workflow không bao giờ stage hay commit
 bất cứ gì.
+
+## Chọn đường đi
+
+**Bình thường vs `--lean` (Bước 1):**
+
+| Codebase | Đường dẫn |
+|---|---|
+| Lớn hoặc chưa quen | Bình thường (`task: ...`) — `context.md` đầy đủ hơn cho planner |
+| Nhỏ, hoặc bạn đã biết rõ khu vực | `--lean` (`task (lean): ...`) — tiết kiệm token Claude, đổi lại một vòng qua lại thêm |
+
+**Sửa trực tiếp vs vòng qua web (follow-up ở Bước 4):**
+
+| Follow-up | Đường dẫn |
+|---|---|
+| Lỗi nhỏ, rõ ràng, bạn đã biết cách mô tả | Nhắn thẳng cho Claude: `fix: ...` |
+| Lỗi chưa rõ, hoặc plan còn thiếu gì đó cần cân nhắc | Đi qua web: `bin/copy-for-web.sh result` |
 
 ## Giới hạn ký tự
 
@@ -495,6 +615,19 @@ trong `.task/web/` — tự bạn đính kèm chúng trong web chat.
 Mỗi lần chạy `bin/copy-for-web.sh` cũng ghi nguyên văn payload vào
 `.task/web/_message.md` — dán tay khi điều khiển phiên làm việc từ xa,
 không có clipboard.
+
+## Xử lý sự cố
+
+| Triệu chứng | Cách xử lý |
+|---|---|
+| Payload gửi web vượt giới hạn ký tự | `bin/copy-for-web.sh` đã tự động tách (các) phần lớn nhất thành file đính kèm trong `.task/web/`; chỉ dùng `--split` khi muốn ép việc này bất kể kích thước. |
+| Không có công cụ clipboard nào được cài | Dán từ `.task/web/_message.md` thay thế — mỗi lần chạy đều ghi nguyên văn payload vào đó. |
+| `bin/save-plan.sh` từ chối ghi đè `plan.md` | Chạy lại với `--force`. |
+| Kế hoạch đã có sẵn trong cuộc hội thoại Claude và bạn muốn kiểm tra lại | Chạy `bin/save-plan.sh --check` — kiểm tra `.task/plan.md` tại chỗ, không đọc/ghi clipboard. |
+| Web chat đã quá dài hoặc mất ngữ cảnh | Chạy `bin/copy-for-web.sh handoff` rồi dán vào một web chat mới. |
+| Trình cài đặt dừng lại vì `.claude/agents/*` hoặc `.claude/skills/save/` đã tồn tại | Nếu đó là bản cài trước đó của chính bạn, chạy lại với `--upgrade`; nếu không, đổi tên một bên — xem Phương án B, mục c). |
+| Trình cài đặt từ chối vì dự án đích không phải git repository | `bin/install-untracked.sh` kiểm tra `git rev-parse --is-inside-work-tree` ở dự án đích; hãy khởi tạo git trước (`git init`) — script này dựa vào `.git/info/exclude`. |
+| Lệnh verify vẫn thất bại sau các lần thử lại của agent | execute-agent dừng lại sau 3 lần thử, ghi lại lệnh thất bại và output vào mục `## Verify` của `.task/implementation.md`, rồi báo cáo thay vì tiếp tục; fix-agent thì vẫn nối `## Follow-up N — Applied` với từng lệnh được đánh dấu pass/fail, nên một lần thất bại vẫn được ghi lại chứ không chặn hẳn. |
 
 ## Cấu trúc thư mục
 
@@ -520,6 +653,7 @@ không có clipboard.
 │       ├── copy-for-web-lib.sh
 │       ├── copy-for-web-modes.sh
 │       ├── copy-for-web-result.sh
+│       ├── install-untracked-ignore.sh
 │       ├── install-untracked-lib.sh
 │       └── save-plan-lib.sh
 ├── .claude/
@@ -544,6 +678,8 @@ không có clipboard.
     ├── implementation.md
     ├── followups.md
     ├── index.md
+    ├── design/         (ảnh tham khảo do con người cung cấp cho web planner)
+    │   └── result/     (ảnh chụp màn hình của tính năng đã build)
     ├── web/            (tạm — dựng lại mỗi lần chạy copy-for-web.sh, bị xoá bởi save)
     └── done/
         ├── README.md
