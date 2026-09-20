@@ -209,6 +209,10 @@ hai, iOS chạy trước và Android chỉ chạy nếu thay đổi là đặc t
 Việt. File này không bao giờ bị agent nào sửa; chỉ skill `save` mới được nối
 thêm các gợi ý bạn đã duyệt ở Bước 5 — ngoài ra bạn tự quản lý nó.
 
+`## Test Command` và `## Test Convention` chỉ gán cho test non-UI (unit,
+logic, integration) — test UI mặc định nằm ngoài phạm vi; hành vi UI vẫn
+được kiểm thử thủ công qua Manual Test Checklist ở Bước 3.
+
 Khi `Language: vi`, `bin/copy-for-web.sh` nối thêm một dòng vào prompt web
 (cả payload lập kế hoạch lẫn payload review kết quả) yêu cầu AI web trả lời
 bằng tiếng Việt: "Write your response in Vietnamese (keep the ## headings
@@ -355,6 +359,10 @@ với sáu mục cố định: `## Summary`, `## Decisions to Review`,
 `## Out of Scope`, `## Open Questions`. Bạn chỉ cần review ba mục đầu —
 Summary, Decisions to Review, AC Coverage.
 
+Khi `## Test Command` trong `.task/PROJECT.md` được cấu hình, `## Steps`
+còn có thêm dòng test đứng trước dòng code sản xuất tương ứng, cho các thay
+đổi hành vi/business-logic.
+
 Với ví dụ dark-mode, một đoạn trích minh hoạ (không phải format bắt buộc)
 của những gì trả về có thể trông như sau:
 
@@ -455,8 +463,13 @@ cần), type check, build (bị gán bởi `Build policy:`), và test/device smo
 — mỗi platform một lệnh khi có cấu hình, iOS trước — tối đa 3 lần thử, và
 viết `.task/implementation.md` (`## Baseline`, `## Changes`,
 `## Deviations from Plan`, `## Verify`, `## Manual Test Checklist`,
-`## PROJECT.md Candidates`), giới hạn ≤ 6.000 ký tự. Với task UI, Manual
-Test Checklist yêu cầu bạn lưu ảnh kết quả vào `.task/design/result/`.
+`## PROJECT.md Candidates`), giới hạn ≤ 6.000 ký tự. Khi `## Steps` có
+dòng test đứng trước dòng code sản xuất tương ứng, execute-agent chạy
+test mới một lần đầu để xác nhận nó fail như mong đợi khi test runner
+nhanh (chạy trên máy host, không boot simulator/emulator); `## Test
+Command` để trống nghĩa là dòng đó được ghi nhận là bị bỏ qua (skipped),
+không phải thất bại. Với task UI, Manual Test Checklist yêu cầu bạn lưu
+ảnh kết quả vào `.task/design/result/`.
 Không commit — workflow không bao giờ stage hay commit, chỉ đọc git để ghi
 baseline.
 

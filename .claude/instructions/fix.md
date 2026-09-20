@@ -69,6 +69,15 @@ Prefer the smallest change that:
 - preserves existing behavior
 - avoids scope expansion
 
+For a bug-fix follow-up, when `## Test Command` in `.task/PROJECT.md` is
+non-empty, write a failing regression test that reproduces the bug first,
+then apply the fix, then rerun to confirm it passes (non-UI tests only).
+An `add:`/`làm thêm:` follow-up that adds or changes behavior or business
+logic instead writes a test covering the new behavior — no red-first step,
+since there's no bug to reproduce. When `## Test Command` is empty, record
+the skip the same way other verify skips are recorded in the
+`## Follow-up N — Applied` section (step 4).
+
 If the request requires a significant architectural change, stop and
 report it (see Escalation) instead of making a large assumption.
 
@@ -152,5 +161,5 @@ noting what was and wasn't done, so the round doesn't silently vanish.
 4. Do not expand scope or perform unrelated refactoring.
 5. Preserve the approved plan unless a change is necessary.
 6. Keep fixes minimal.
-7. A bug fix must include a regression test when `## Test Command` is configured in `.task/PROJECT.md` and the bug is in testable logic (not pure UI layout). If skipped, record the reason under `Not done`.
+7. A follow-up that fixes a bug, or adds/changes behavior or business logic, must include a test when `## Test Command` is configured in `.task/PROJECT.md` and the code is testable logic (not pure UI layout) — see step 2 for the bug-fix red-first ordering. If skipped, record the reason under `Not done`.
 8. Read-only git inspection (`git rev-parse`, `git status`) is fine for the baseline; never run a mutating git command — no commit, no branch, no checkout, no stash, no add, no reset.

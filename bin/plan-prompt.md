@@ -19,7 +19,9 @@ Produce a plan with these sections, in this order:
   explicitly.
 - `## Steps` — a markdown table `| # | File | Change | Notes |`, one row
   per change, precise enough that the executor does not need to
-  re-explore to understand what to do.
+  re-explore to understand what to do. For behavior or business-logic
+  changes, list test rows and production-code rows as separate steps,
+  with the test step preceding its implementation step.
 - `## Out of Scope` — what you are deliberately not doing.
 - `## Open Questions` — write `None` if there are none.
 
@@ -39,6 +41,16 @@ For release-sensitive work, include versioning, migration, feature-flag,
 signing, artifact, and crash-symbol implications in the relevant ACs or
 Out of Scope. Steps that need codegen/setup or new-file registration should
 say so in Notes.
+
+When the project has a `## Test Command` configured, every behavior or
+business-logic change must include corresponding non-UI tests in `## Steps`.
+Preferred order: (1) add/update unit, domain/logic, or integration tests
+that define the expected behavior; (2) implement the production code;
+(3) refactor if needed. UI tests are out of scope by default; add only when
+the task explicitly requires them. If tests are omitted for an eligible
+change, explain why in `## Decisions to Review` or `## Out of Scope`.
+Exempt from this rule: rename-only, config, dependency, migration, and
+behavior-preserving refactor steps.
 
 Style: terse, sentence fragments are fine, do not restate context already
 given below. Include a code snippet only if essential to remove

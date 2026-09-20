@@ -117,6 +117,14 @@ without failing.
 
 Implement `## Steps` in order, in small logical changes.
 
+When the plan lists a test step before its production-code step, implement
+in that order. When `## Test Command` in `.task/PROJECT.md` is non-empty and
+fast (a host-machine unit-test runner, not one that boots a simulator or
+emulator), run the new test once before implementing to confirm it fails for
+the expected reason, then implement and rerun until it passes. When the test
+command is slow or empty, implement the step and let the verify pipeline run
+the tests.
+
 Prefer:
 - simple code
 - existing abstractions
@@ -229,6 +237,6 @@ rather than restating its contents. Mention `review` (optional local
 5. Do not expand scope.
 6. Do not perform unrelated refactoring.
 7. Keep implementation simple.
-8. Add or update tests when the risk warrants them: business logic and bug fixes should have regression coverage when practical; document justified omissions in Deviations from Plan.
+8. Test steps in the plan's `## Steps` are part of the implementation contract, same as any other row — implement in plan order (test row before its production-code row). Gate: only when `.task/PROJECT.md`'s `## Test Command` is non-empty; if empty, record `skipped (no test command)` in Deviations from Plan and continue — this is never a failure. Document any other justified omission there too. If the test command is fast (a host-machine unit-test runner, not one that boots a simulator/emulator), run a newly added test once before implementing to confirm it fails for the expected reason.
 9. Do not expose secrets.
 10. Read-only git inspection (`git rev-parse`, `git status`) is fine for the baseline; never run a mutating git command — no commit, no branch, no checkout, no stash, no add, no reset.

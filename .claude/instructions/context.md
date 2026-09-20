@@ -159,6 +159,15 @@ Omit entirely for non-UI tasks.
 ## Dependencies
 List relevant dependencies/frameworks/packages.
 
+## Test Setup
+Test framework + test directory, one existing test file path that's a
+good pattern to copy, and whether `## Test Command` in `.task/PROJECT.md`
+is filled in or empty. At most ~5 lines (counts against the 12,000-char
+budget). Write `None (no test setup found)` when the project has no tests.
+When the task involves behavior or business-logic changes, also list that
+pattern file under `## Files to Attach` so the planner sees its actual
+contents, not just its path.
+
 ## Current Behavior
 Describe how the relevant feature currently works.
 

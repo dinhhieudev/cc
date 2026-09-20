@@ -209,6 +209,10 @@ it to `vi` for Vietnamese output. This file is never modified by any agent
 or skill except the `save` skill, which may append bullets you approve in
 Step 5 — otherwise you own it.
 
+`## Test Command` and `## Test Convention` gate non-UI tests only (unit,
+logic, integration) — UI tests are out of scope by default; UI behavior is
+still verified through the Manual Test Checklist in Step 3.
+
 When `Language: vi`, `bin/copy-for-web.sh` also appends a line to the web
 prompt (both planning and result-review payloads) asking the AI web to
 answer in Vietnamese: "Write your response in Vietnamese (keep the ##
@@ -354,6 +358,10 @@ fixed sections: `## Summary`, `## Decisions to Review`, `## AC Coverage`,
 `## Open Questions`. You only need to review the first three sections —
 Summary, Decisions to Review, AC Coverage.
 
+When `## Test Command` in `.task/PROJECT.md` is configured, `## Steps` also
+includes a test row before its production-code row for behavior/business-logic
+changes.
+
 For the dark-mode example, a plausible (illustrative, not literal-format)
 excerpt of what comes back:
 
@@ -456,8 +464,13 @@ in order, then runs codegen/setup (when relevant), type check, build
 platform when configured, iOS first — up to 3 attempts, and writes
 `.task/implementation.md` (`## Baseline`, `## Changes`, `## Deviations from
 Plan`, `## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`),
-budget ≤ 6,000 characters. For UI tasks, the Manual Test Checklist asks you
-to save result screenshots into `.task/design/result/`. No commit — the
+budget ≤ 6,000 characters. When `## Steps` includes a test row before its
+production-code row, execute-agent runs the new test once first to
+confirm it fails as expected when the test runner is fast (host machine,
+no simulator/emulator boot); an empty `## Test Command` means the row is
+recorded as skipped, never a failure. For UI tasks, the Manual Test
+Checklist asks you to save result screenshots into
+`.task/design/result/`. No commit — the
 workflow never stages or commits, only reads git for the baseline.
 
 For the dark-mode example, an illustrative `## Changes` line:
