@@ -26,8 +26,10 @@ file (.env*, *.pem/*.key/*.p12/*.pfx/*.jks/*.keystore, private SSH
 keys, .npmrc/.netrc/.git-credentials, or names containing
 secret/credential/password/apikey/api_key/token — except that last
 group of name checks does not apply to image files: png/jpg/jpeg/
-gif/webp/svg/bmp/ico) — this is a filename pattern check, not a
-content scanner; pass --force-secret to copy such files anyway.
+gif/webp/svg/bmp/ico); pass --force-secret to copy such files anyway.
+Also warns and skips (not overridable by --force-secret) non-binary
+files whose content looks like a credential (AWS key, private key
+header, Bearer token, OpenAI-style key, Slack token, GitHub token).
 Prints each "path -> flattened name" and the total character count of
 everything now in .task/web/.
 
@@ -96,6 +98,10 @@ for p in "${PATHS[@]}"; do
       echo "Warning: refusing likely secret file '$p' (matches pattern); skipping. Use --force-secret to override if you're sure." >&2
       continue
     fi
+  fi
+  if has_secret_content "$p"; then
+    echo "Warning: refusing '$p' (contains what looks like a credential); skipping." >&2
+    continue
   fi
   SIZE=$(wc -c < "$p" | tr -d ' ')
   if [[ "$SIZE" -gt "$MAX_BYTES" ]]; then

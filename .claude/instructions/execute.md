@@ -31,7 +31,7 @@ Set `.task/index.md` Active Task Status to `executing` (it stays `executing` thr
 
 The actual codebase is the source of truth.
 
-**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`spec`, `planned`, `executing`, `fixing`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.
+**Output language.** Read `.claude/instructions/_language.md` and follow it.
 
 ## Token Discipline
 
@@ -56,6 +56,13 @@ If you encounter:
   explicitly list
 
 DO NOT guess or invent a solution.
+
+Before stopping, write `.task/implementation.md` using the step 5
+template: `## Changes` listing what was applied so far (or
+`None — stopped before changing code`), and `## Deviations from Plan`
+stating which step you stopped at and what decision is required — so
+partial work isn't lost. `.task/index.md` Status stays `executing` so
+the human can resume.
 
 Stop and report:
 1. What you found
@@ -102,6 +109,12 @@ the problem.
 
 ### 3. Implement
 
+Before any code changes, run `git rev-parse --short HEAD` and
+`git status --porcelain` (read-only — never run a mutating git command)
+and record the results for the `## Baseline` section below. If the
+project is not a git repository, record `not a git repo` and continue
+without failing.
+
 Implement `## Steps` in order, in small logical changes.
 
 Prefer:
@@ -126,43 +139,13 @@ After implementation:
 - review the diff
 - confirm every Acceptance Criterion is addressed (cross-check against
   `## AC Coverage`)
-- run verify commands from `.task/PROJECT.md` in this order:
-  0. `## Codegen / Setup Command` — run first when the change touches
-     models/serialization, dependencies, l10n strings, assets, or adds
-     files needing registration; else record `skipped (not needed)`
-  1. `## Type Check Command` — fast; required if present
-  2. `## Build Command` — gated by its `Build policy:` line (absent =
-     `native-only`): `always` runs it; `never` records
-     `skipped (policy)`; `native-only` runs it only when the change
-     touches native config, dependencies, codegen, platform folders, or
-     build settings, else records `skipped (policy)`
-  3. `## Test Command` — run after build when present
-  4. `## Device Smoke Test Command` — run when present and relevant to the task
-  Backward compat: if only the old `## Verify Command` field is present,
-  treat it as the type check step. Empty optional commands are skipped and
-  must be recorded as skipped, never reported as passed.
 
-**Per-platform commands.** Build/Test/Device Smoke slots may hold one line
-per platform (`ios: <command>` / `android: <command>`) instead of a single
-command. Run only the platforms the task affects — from context.md's
-`## Platform & Build Context` when available, otherwise inferred from the
-changed files. iOS always runs first; when both platforms are affected,
-run Android only if the change touches Android-specific files/behavior,
-else record it `skipped (ios-priority)`.
+Read `.claude/instructions/_verify.md` and run the pipeline it describes.
+Affected platforms come from context.md's `## Platform & Build Context`
+when available, otherwise inferred from the changed files. Record verify
+results in `.task/implementation.md`'s `## Verify`.
 
-**Long-running commands.** Run codegen/build/test commands with the
-maximum Bash timeout, or in the background and wait for them — mobile
-builds routinely exceed the default 2-minute timeout. A tool timeout is
-not a verify failure: rerun with more time and do not count it toward the
-3 attempts below.
-
-Do not read the whole verify log into context: redirect its output to a temp file, then read back only the last ~50 lines plus any lines matching an error/warning pattern, errors before warnings (e.g. `{command} > /tmp/verify.log 2>&1; tail -n 50 /tmp/verify.log; grep -iE 'error|failed' /tmp/verify.log | head -30; grep -i 'warning' /tmp/verify.log | head -10`). Record only the pass/fail verdict and the essential error lines in `.task/implementation.md`.
-
-Every configured verify command must pass before proceeding. Run codegen/setup
-first, then type check, then build, then tests. If any configured command
-fails, fix the code and rerun the pipeline from type check, up to 3 full
-attempts total (codegen/setup reruns only if its inputs changed since the
-previous attempt). If it still fails after the third attempt, write
+If the pipeline still fails after the third attempt, write
 `.task/implementation.md` with `## Verify` showing the failing command and
 output, then STOP and report exactly:
 
@@ -178,15 +161,16 @@ output, then STOP and report exactly:
 > - {summary of attempt 2}
 > - {summary of attempt 3}
 
-If `.task/PROJECT.md` has no type check, build, test, or verify command filled in, say so explicitly
-in `.task/implementation.md` instead of silently skipping this step.
-
 ### 5. Write implementation.md
 
 Create `.task/implementation.md`:
 
 ```
 # Implementation Summary
+
+## Baseline
+- HEAD before changes: {short sha}
+- Working tree before changes: clean | {N} pre-existing modified/untracked files
 
 ## Changes
 - `path/to/file`: change, 1 line
@@ -232,7 +216,9 @@ One line per platform when a slot has per-platform commands, e.g.
 ### 6. Final Report
 
 Report to the human in ≤ ~10 lines, pointing at `.task/implementation.md`
-rather than restating its contents.
+rather than restating its contents. Mention `review` (optional local
+`/code-review` pass) as an available next step alongside
+`bin/copy-for-web.sh result`.
 
 ## Rules
 
@@ -245,4 +231,4 @@ rather than restating its contents.
 7. Keep implementation simple.
 8. Add or update tests when the risk warrants them: business logic and bug fixes should have regression coverage when practical; document justified omissions in Deviations from Plan.
 9. Do not expose secrets.
-10. No commit — this workflow does not touch git.
+10. Read-only git inspection (`git rev-parse`, `git status`) is fine for the baseline; never run a mutating git command — no commit, no branch, no checkout, no stash, no add, no reset.

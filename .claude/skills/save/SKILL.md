@@ -149,12 +149,12 @@ Delete `.task/design/` if it exists — it was already archived into the archive
 Delete `.task/web/` if it exists — it holds scratch attachments
 `bin/copy-for-web.sh` collected for the web chat and is never archived.
 
-**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`spec`, `planned`, `executing`, `fixing`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments. The blank templates written in this step stay in English regardless of setting — they are structural placeholders, not prose.
+**Output language.** Read `.claude/instructions/_language.md` and follow it. The blank templates written in this step stay in English regardless of setting — they are structural placeholders, not prose.
 
 ### 7. Update index.md and report
 
 In `.task/index.md`:
-- Add a row to the History table: `| {id} | {slug} | {screen} | {today's date} | done |` — {screen} is the Active Task Screen field's current value
+- Add a row to the History table: `| {id} | {slug} | {screen} | {today's date} | {status} |` — {screen} is the Active Task Screen field's current value; {status} is `done` for a normal archive, or `partial` if step 0 required the human to confirm archiving with an unfinished follow-up
 - Clear the Active Task section (set all fields to `—`)
 
 Report:
@@ -166,7 +166,8 @@ If step 2 overwrote a pre-existing archive folder (completing an
 earlier interrupted save), say so explicitly here.
 
 If step 0 required the human to confirm archiving an unfinished
-follow-up, say so explicitly here.
+follow-up, say so explicitly here, and note the History row was marked
+`partial`.
 
 ## Rules
 

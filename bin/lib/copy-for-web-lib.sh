@@ -1,42 +1,6 @@
 # Shared helpers for bin/copy-for-web.sh. Sourced, not executed directly.
 
-# Placeholder files contain nothing but a heading and HTML comment(s); strip
-# comments (including ones spanning multiple lines), heading lines, and
-# blank lines, then check whether anything real is left.
-strip_comments() {
-  awk '
-    BEGIN { incomment = 0 }
-    {
-      line = $0
-      out = ""
-      while (length(line) > 0) {
-        if (incomment) {
-          end = index(line, "-->")
-          if (end == 0) { line = "" }
-          else { line = substr(line, end + 3); incomment = 0 }
-        } else {
-          start = index(line, "<!--")
-          if (start == 0) { out = out line; line = "" }
-          else {
-            out = out substr(line, 1, start - 1)
-            line = substr(line, start + 4)
-            incomment = 1
-          }
-        }
-      }
-      print out
-    }
-  ' "$1"
-}
-
-has_real_content() {
-  strip_comments "$1" | awk '
-    /^[[:space:]]*#/ { next }
-    /^[[:space:]]*$/ { next }
-    { found = 1 }
-    END { exit(found ? 0 : 1) }
-  '
-}
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 # .task/PROJECT.md ships with its ## Language section pre-filled
 # (Language: en); strip that pre-filled line too before checking for
@@ -135,7 +99,7 @@ extract_attach_paths() {
 # ATTACH_LIST to a "--- ATTACHED FILES ---" block (or "" if none/none
 # valid). Warns and skips missing or unsafe paths.
 copy_attach_files() {
-  local web_dir="$1" rel_path lines=""
+  local web_dir="$1" rel_path lines="" size
   while IFS= read -r rel_path; do
     [[ -z "$rel_path" ]] && continue
     if is_unsafe_path "$rel_path"; then
@@ -144,6 +108,19 @@ copy_attach_files() {
     fi
     if [[ ! -f "$rel_path" ]]; then
       echo "Warning: attach path '$rel_path' not found; skipping." >&2
+      continue
+    fi
+    if is_secret_file "$rel_path"; then
+      echo "Warning: refusing likely secret file '$rel_path' (matches pattern); skipping." >&2
+      continue
+    fi
+    if has_secret_content "$rel_path"; then
+      echo "Warning: refusing '$rel_path' (contains what looks like a credential); skipping." >&2
+      continue
+    fi
+    size=$(wc -c < "$rel_path" | tr -d ' ')
+    if [[ "$size" -gt "$MAX_BYTES" ]]; then
+      echo "Warning: '$rel_path' is $size bytes, over the 200 KB limit; skipping." >&2
       continue
     fi
     copy_web_file "$web_dir" "$rel_path" "$rel_path"
@@ -168,7 +145,7 @@ build_project_section() {
   elif ! project_has_substance .task/PROJECT.md; then
     echo "Warning: .task/PROJECT.md has no project context filled in (only the Language section) — the AI web planner will not receive project architecture/conventions." >&2
   else
-    PROJECT_SECTION=$'--- PROJECT ---\n'"$(cat .task/PROJECT.md)"
+    PROJECT_SECTION=$'--- PROJECT ---\n'"$(strip_comments .task/PROJECT.md)"
   fi
 }
 

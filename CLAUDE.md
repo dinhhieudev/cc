@@ -14,6 +14,7 @@ A task workflow that pairs Claude Code (codebase exploration, implementation, fi
 | `run fix` / `chạy fix` (follow-up saved via `bin/save-followup.sh`) | Dispatch **fix-agent**; do NOT read `.task/followups.md` |
 | `fix: ...` / `add: ...` / `làm thêm: ...` / any follow-up request on the current task | Append `## Follow-up N` (request verbatim) to `.task/followups.md` FIRST, then dispatch **fix-agent** |
 | `save task` / `lưu task` | Run `save` skill |
+| `review` / `review code` / `chạy review` | Optional — costs Claude tokens, unlike the web round-trip. Run Claude Code's built-in `/code-review` on the working-tree diff, before sending to AI web via `bin/copy-for-web.sh result` |
 
 New-task template written to `.task/overview.md` before dispatching context-agent (rows 1-2 only): if the request starts with a bracketed tag like `[Login] add a dark mode toggle`, capture `Login` as the Screen tag — additional extraction, `## Original Request` still holds the full request verbatim, brackets included.
 
@@ -33,7 +34,7 @@ Equivalent phrasings in either language route the same row.
 
 `.task/index.md` Active Task Status: context-agent sets `spec`, `save-plan.sh` sets `planned`, execute-agent sets `executing`, fix-agent sets `fixing`, the `save` skill sets `done`.
 
-N = (count of lines in `.task/followups.md` matching `^## Follow-up [0-9]+$` — request headings only, not `— Applied`) + 1.
+N = highest existing `## Follow-up N` number in `.task/followups.md` (matching `^## Follow-up [0-9]+$` — request headings only, not `— Applied`) + 1, or 1 if none exist.
 
 ## Hard rules for main context
 

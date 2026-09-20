@@ -103,8 +103,8 @@ In `.task/index.md`, update the Active Task section: ID = count of `.task/done/`
 
 Pasted into the same web chat, same 25,000-character message — keep it dense, no filler. **Budget:
 `.task/context.md` itself must be ≤ 12,000 characters** (check with `wc -m .task/context.md` before
-finishing). The rest of the message is shared by `.task/PROJECT.md` (~5,000 chars, pasted with its
-HTML comments stripped), `.task/overview.md`, and the planning prompt (~3,500 chars). If over,
+finishing). The rest of the message is shared by `.task/PROJECT.md` (~3,000 chars, HTML comments
+stripped by `bin/copy-for-web.sh`), `.task/overview.md`, and the planning prompt (~3,500 chars). If over,
 compress: drop low-value detail, summarize files instead of quoting them, keep code excerpts only
 where essential. Use this structure:
 

@@ -1,0 +1,4 @@
+<!-- Shared include — not a standalone agent role. Read by context.md, execute.md, fix.md, and .claude/skills/save/SKILL.md. -->
+# Output Language
+
+**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`spec`, `planned`, `executing`, `fixing`, `done`, `partial`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.

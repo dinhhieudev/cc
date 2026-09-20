@@ -40,7 +40,7 @@ run_plan_mode() {
     recompute
 
     if [[ -n "$PROJECT_DISPLAY" ]] && { [[ "$FORCE_SPLIT" -eq 1 ]] || [[ "$TOTAL_CHARS" -gt "$LIMIT" ]]; }; then
-      cat .task/PROJECT.md > "$WEB_DIR/project.md"
+      strip_comments .task/PROJECT.md > "$WEB_DIR/project.md"
       WEB_FILES+=("project.md")
       PROJECT_DISPLAY="--- PROJECT --- (attached as project.md)"
       recompute

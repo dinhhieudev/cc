@@ -8,6 +8,8 @@
      (plan.md saved, via save-plan.sh) -> executing (execute-agent
      running/ran) -> fixing (a follow-up round in progress) -> done
      (terminal, set by the save skill) -->
+<!-- History-only value: partial (save skill, when the human confirmed
+     archiving with an unfinished follow-up) -->
 
 | Field   | Value |
 |---------|-------|

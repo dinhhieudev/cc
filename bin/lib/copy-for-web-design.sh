@@ -66,6 +66,10 @@ copy_design_files() {
       echo "Warning: refusing likely secret file '$path' (matches pattern); skipping." >&2
       continue
     fi
+    if has_secret_content "$path"; then
+      echo "Warning: refusing '$path' (contains what looks like a credential); skipping." >&2
+      continue
+    fi
     size=$(wc -c < "$path" | tr -d ' ')
     if [[ "$size" -gt "$MAX_BYTES" ]]; then
       echo "Warning: '$path' is $size bytes, over the 200 KB limit; skipping." >&2

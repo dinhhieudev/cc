@@ -33,7 +33,7 @@ request) or from AI web review; treat both the same way.
 3. Current `## Follow-up N` request
 4. Task overview
 
-**Output language.** Read the `Language:` line in `.task/PROJECT.md` `## Language` (missing or unrecognized → `en`). Write all prose you put into `.task/*.md` files and your final report to the human in that language (`vi` = Vietnamese). Always keep in English regardless of setting: every markdown heading (e.g. `## Goal`, `## Acceptance Criteria`, `## Follow-up N`, `## Follow-up N — Applied`) — tooling and routing grep these exact strings; the `Language:` line; `.task/index.md` table field names, status values (`spec`, `planned`, `executing`, `fixing`, `done`) and `—` placeholders; file paths; task slugs; code, identifiers, and code comments.
+**Output language.** Read `.claude/instructions/_language.md` and follow it.
 
 ## Token Discipline
 
@@ -57,6 +57,12 @@ suggested; confirm the issue actually exists first.
 
 ### 2. Fix
 
+Before making any change, run `git rev-parse --short HEAD` and
+`git status --porcelain` (read-only — never run a mutating git command)
+and record the results for the `Baseline:` line in step 4. If the
+project is not a git repository, record `not a git repo` and continue
+without failing.
+
 Prefer the smallest change that:
 - resolves the request
 - preserves the approved architecture
@@ -72,52 +78,11 @@ After fixing:
 - inspect changed code
 - review the diff
 - verify no obvious regressions
-- run verify commands from `.task/PROJECT.md` in order:
-  0. `## Codegen / Setup Command` — run first when the change touches
-     models/serialization, dependencies, l10n strings, assets, or adds
-     files needing registration; else record `skipped (not needed)`
-  1. `## Type Check Command` — fast; required if present
-  2. `## Build Command` — gated by its `Build policy:` line (absent =
-     `native-only`): `always` runs it; `never` records
-     `skipped (policy)`; `native-only` runs it only when the change
-     touches native config, dependencies, codegen, platform folders, or
-     build settings, else records `skipped (policy)`
-  3. `## Test Command` — run after build when present
-  4. `## Device Smoke Test Command` — run when present and relevant
-  Backward compat: if only the old `## Verify Command` field is present,
-  treat it as the type check step. Empty optional commands are skipped and
-  must be recorded as skipped, never reported as passed.
 
-**Per-platform commands.** Build/Test/Device Smoke slots may hold one line
-per platform (`ios: <command>` / `android: <command>`) instead of a single
-command. Run only the platforms the follow-up affects — inferred from the
-files changed (fix-agent does not read context.md). iOS always runs
-first; when both platforms are affected, run Android only if the change
-touches Android-specific files/behavior, else record it
-`skipped (ios-priority)`.
-
-**Long-running commands.** Run codegen/build/test commands with the
-maximum Bash timeout, or in the background and wait for them — mobile
-builds routinely exceed the default 2-minute timeout. A tool timeout is
-not a verify failure: rerun with more time and do not count it toward
-the 3 attempts below.
-
-Do not read the whole verify log into context: redirect its output to a
-temp file, then read back only the last ~50 lines plus any lines
-matching an error/warning pattern, errors before warnings (e.g.
-`{command} > /tmp/verify.log 2>&1; tail -n 50 /tmp/verify.log; grep -iE
-'error|failed' /tmp/verify.log | head -30; grep -i 'warning'
-/tmp/verify.log | head -10`). Record only the pass/fail verdict and the
-essential error lines in the `## Follow-up N — Applied` section.
-
-Every configured verify command must pass before proceeding. Run
-codegen/setup first, then type check, then build, then tests. If any
-command fails, fix the code and rerun the pipeline from type check, up to
-3 full attempts total (codegen/setup reruns only if its inputs changed
-since the previous attempt).
-
-If `.task/PROJECT.md` has no type check, build, test, or verify command filled in, say so explicitly
-in the Applied section instead of silently skipping this step.
+Read `.claude/instructions/_verify.md` and run the pipeline it describes.
+Affected platforms are inferred from the changed files (fix-agent does
+not read context.md). Record verify results in the `## Follow-up N —
+Applied` section.
 
 ### 4. Append to followups.md
 
@@ -127,6 +92,7 @@ stay in order: request N, applied N, request N+1, ...):
 
 ```
 ## Follow-up N — Applied
+Baseline: {sha}, tree clean|N files
 - `path/to/file`: what changed, 1 line
 
 Verify:
@@ -187,4 +153,4 @@ noting what was and wasn't done, so the round doesn't silently vanish.
 5. Preserve the approved plan unless a change is necessary.
 6. Keep fixes minimal.
 7. A bug fix must include a regression test when `## Test Command` is configured in `.task/PROJECT.md` and the bug is in testable logic (not pure UI layout). If skipped, record the reason under `Not done`.
-8. No commit — this workflow does not touch git.
+8. Read-only git inspection (`git rev-parse`, `git status`) is fine for the baseline; never run a mutating git command — no commit, no branch, no checkout, no stash, no add, no reset.

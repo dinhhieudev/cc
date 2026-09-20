@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/save-plan-lib.sh"
+source "$SCRIPT_DIR/lib/common.sh"
 
 usage() {
   cat <<'EOF'
@@ -59,44 +60,6 @@ if [[ ! -d .task ]]; then
   exit 1
 fi
 
-# Placeholder files contain nothing but a heading and HTML comment(s); strip
-# comments (including ones spanning multiple lines), heading lines, and
-# blank lines, then check whether anything real is left.
-strip_comments() {
-  awk '
-    BEGIN { incomment = 0 }
-    {
-      line = $0
-      out = ""
-      while (length(line) > 0) {
-        if (incomment) {
-          end = index(line, "-->")
-          if (end == 0) { line = "" }
-          else { line = substr(line, end + 3); incomment = 0 }
-        } else {
-          start = index(line, "<!--")
-          if (start == 0) { out = out line; line = "" }
-          else {
-            out = out substr(line, 1, start - 1)
-            line = substr(line, start + 4)
-            incomment = 1
-          }
-        }
-      }
-      print out
-    }
-  ' "$1"
-}
-
-has_real_content() {
-  strip_comments "$1" | awk '
-    /^[[:space:]]*#/ { next }
-    /^[[:space:]]*$/ { next }
-    { found = 1 }
-    END { exit(found ? 0 : 1) }
-  '
-}
-
 PLAN_FILE=.task/plan.md
 
 if [[ "$CHECK" -eq 1 ]]; then
@@ -145,6 +108,7 @@ if [[ -z "$(printf '%s' "$CONTENT" | tr -d '[:space:]')" ]]; then
 fi
 
 printf '# Implementation Plan\n\n%s\n' "$CONTENT" > "$PLAN_FILE"
+set_active_status planned
 
 if ! printf '%s\n' "$CONTENT" | grep -q '^## Steps'; then
   echo "Warning: no '## Steps' section found in the pasted plan." >&2
@@ -157,4 +121,5 @@ check_steps_paths "$PLAN_FILE"
 
 LINES=$(wc -l < "$PLAN_FILE" | tr -d ' ')
 echo "Wrote $LINES lines to $PLAN_FILE." >&2
+echo "Set .task/index.md Active Task Status to planned." >&2
 echo "Now tell Claude: run execute" >&2

@@ -13,14 +13,27 @@ precisely, on cheap `sonnet` subagents, to keep Claude token spend low.
 The web chat is the brain, with its own quota separate from Claude's — it
 does the planning and the result review, the reasoning-heavy work. Claude
 Code is the hands: it explores the codebase, writes tight technical context,
-and executes plans literally through cheap subagents. No git diff is ever
-sent to the web chat, and the workflow itself never touches git — branches
-and commits stay entirely in the human's hands.
+and executes plans literally through cheap subagents. No git diff reaches
+the web chat by default — it's opt-in via `bin/copy-for-web.sh result
+--diff` — and the workflow itself never runs a mutating git command
+(no commit, branch, checkout, stash, or reset); execute-agent and fix-agent
+only read `git rev-parse`/`git status` for a baseline record. Branches and
+commits stay entirely in the human's hands.
 
 Everything that crosses into the web chat is character-budgeted (one web
 message is capped at `WEB_CHAR_LIMIT`, 25,000 characters by default), and
 whatever doesn't fit is split into attachment files under `.task/web/` that
-you attach manually.
+you attach manually. Anything attached this way — the `## Files to Attach`
+list from `context.md`, `.task/design/` reference screenshots, and files
+sent via `bin/attach.sh` — is checked against a filename guard (refuses
+`.env`, `.pem`/`.key`, SSH keys, `.npmrc`/`.netrc`, and names containing
+secret/credential/password/apikey/token, except for image files) and a
+content scan for common credential shapes (AWS keys, PEM headers, Bearer
+tokens, OpenAI/Slack/GitHub token patterns); matches are refused with a
+stderr warning and never reach `.task/web/`. Result screenshots
+(`.task/design/result/`) and the optional `--diff` attachment get the
+filename guard and size cap only, not the content scan. Both guards are
+heuristics, not a guarantee — you still own what you attach.
 
 **Normal vs `--lean` (Step 1):**
 
@@ -49,12 +62,13 @@ script relies on the target's local-only `.git/info/exclude` to keep
 everything it installs out of the target's git status. It copies:
 
 - `.claude/agents/{context-agent.md,execute-agent.md,fix-agent.md}`
-- `.claude/instructions/{context.md,execute.md,fix.md}`
+- `.claude/instructions/` — the whole directory: `context.md`, `execute.md`,
+  `fix.md`, plus the shared includes `_verify.md` and `_language.md`
 - `.claude/skills/save/`
 - `.task/` — only if the target has no `.task/` yet (a fresh install; an
   existing `.task/` is left untouched)
 - `bin/{copy-for-web.sh,plan-prompt.md,result-prompt.md,save-plan.sh,save-followup.sh,attach.sh,lean-note.md}`
-  and `bin/lib/{copy-for-web-lib.sh,copy-for-web-design.sh,copy-for-web-result.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
+  and `bin/lib/{common.sh,copy-for-web-lib.sh,copy-for-web-design.sh,copy-for-web-result.sh,copy-for-web-modes.sh,copy-for-web-lean.sh,copy-for-web-handoff.sh,save-plan-lib.sh}`
 
 It also merges this repo's `CLAUDE.md` (Agent Routing table + hard rules)
 into the target's `CLAUDE.local.md` between marker comments, and adds a
@@ -238,13 +252,12 @@ bin/copy-for-web.sh [--split]
 ```
 
 With no argument it builds the planning payload — `.task/PROJECT.md` (if it
-has real content beyond the Language line), `.task/overview.md`,
+has real content beyond the Language line, HTML comments stripped), `.task/overview.md`,
 `.task/context.md`, prefixed with `bin/plan-prompt.md` — and copies it to
 the clipboard. If the payload exceeds `WEB_CHAR_LIMIT` (25,000 by default,
 overridable via the environment variable), CONTEXT is split to a
 `.task/web/` attachment file first, then PROJECT if still over; `--split`
-forces both to attachments regardless of size. A warning (with a per-section
-size breakdown) prints at 85% of the limit.
+forces both to attachments regardless of size.
 
 If `.task/design/` has reference screenshots, they're auto-attached the same way
 (listed under `--- DESIGN REFERENCE (attached) ---`) — attach those too.
@@ -331,12 +344,14 @@ With no flags it reads the clipboard and writes it to `.task/plan.md`,
 running the same validation, and warns (non-fatally) about missing required
 headings, unresolved `## Open Questions`, a `## Decisions to Review` section
 that looks thin (short bullets with no visible reasoning), or `## Steps`
-file paths that don't exist and aren't marked as new. It refuses to overwrite an
+file paths that don't exist and aren't marked as new. On success it also sets
+`.task/index.md`'s Active Task Status to `planned`. It refuses to overwrite an
 already-filled `plan.md` unless `--force` is given. `--stdin` reads the plan
 from stdin instead of the clipboard (e.g. `cat plan.txt | bin/save-plan.sh
---stdin`) and otherwise behaves exactly like the clipboard route. `--check`
-validates the existing `.task/plan.md` in place — no clipboard read, no
-write — and errors only if the file is missing or still a placeholder.
+--stdin`) and otherwise behaves exactly like the clipboard route (same Status
+update). `--check` validates the existing `.task/plan.md` in place — no
+clipboard read, no write, no Status update — and errors only if the file is
+missing or still a placeholder.
 
 Then tell Claude `run execute` (or `chạy execute`) — main context dispatches
 **execute-agent** directly without reading `plan.md` itself.
@@ -345,22 +360,26 @@ execute-agent reads `PROJECT.md`, `overview.md`, `plan.md`, checks
 `## AC Coverage` against every Acceptance Criterion, and escalates instead
 of guessing on a blocking `## Open Questions` entry, an architectural
 conflict, anything security-sensitive, or a new dependency/permission/
-entitlement/manifest change the plan doesn't list. It implements `## Steps`
+entitlement/manifest change the plan doesn't list. Before touching any code
+it records a `## Baseline` (the current `git rev-parse --short HEAD` and
+`git status --porcelain`, read-only — never a mutating git command) so a
+bad run stays reviewable and revertible by hand. It implements `## Steps`
 in order, then runs codegen/setup (when relevant), type check, build
 (gated by `Build policy:`), and tests/device smoke — one command per
 platform when configured, iOS first — up to 3 attempts, and writes
-`.task/implementation.md` (`## Changes`, `## Deviations from Plan`,
-`## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`), budget
-≤ 6,000 characters. For UI tasks, the Manual Test Checklist asks you to
-save result screenshots into `.task/design/result/`. No commit — the
-workflow doesn't touch git.
+`.task/implementation.md` (`## Baseline`, `## Changes`, `## Deviations from
+Plan`, `## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`),
+budget ≤ 6,000 characters. For UI tasks, the Manual Test Checklist asks you
+to save result screenshots into `.task/design/result/`. No commit — the
+workflow never stages or commits, only reads git for the baseline.
 
 For the dark-mode example, an illustrative `## Changes` line:
 `- lib/settings/settings_screen.dart: added dark-mode toggle, persists via SharedPreferences`
 
 ## Step 4 — test and fix (loop, no round limit)
 
-Test manually. Two routes, repeat as many times as needed:
+Test manually. Two routes plus an optional local review, repeat as many
+times as needed:
 
 **Small/obvious fix** — prompt Claude directly: `fix: ...` / `add: ...` /
 `làm thêm: ...` (or any follow-up request). Main context appends
@@ -398,10 +417,18 @@ warns if the previous one isn't yet marked Applied. Then tell Claude
 `run fix` (or `chạy fix`) — main context dispatches **fix-agent** without
 reading `followups.md` itself.
 
-fix-agent reads only the current `## Follow-up N` section (not earlier
-rounds), applies the smallest safe change, re-runs the Verify Command (up to
-3 attempts), and appends `## Follow-up N — Applied` — budget ≤ 1,400
-characters per section.
+fix-agent records the same read-only `## Baseline` (HEAD sha + working-tree
+state) as execute-agent, reads only the current `## Follow-up N` section
+(not earlier rounds), applies the smallest safe change, re-runs the Verify
+Command (up to 3 attempts), and appends `## Follow-up N — Applied` with a
+one-line `Baseline:` entry — budget ≤ 1,400 characters per section.
+
+**Optional: local review** — say `review` / `review code` / `chạy review`
+any time before a web round-trip to run Claude Code's built-in
+`/code-review` on the working-tree diff. Unlike everything else in this
+loop it costs Claude tokens, so reach for it when the web chat is
+exhausted, has gotten too long, or you want a local pass before or instead
+of `bin/copy-for-web.sh result`.
 
 **Fresh chat** — if the *same* web chat above has gotten too long or lost
 context, run `bin/copy-for-web.sh handoff` instead of `result` and paste it
@@ -435,7 +462,9 @@ Say `save task` (or `lưu task`). The `save` skill:
   the ones you approve to the matching section of `.task/PROJECT.md` — its
   one exception to never touching that file
 - resets those five files to their blank templates and deletes `.task/web/`
-- clears the Active Task section in `index.md` and adds a History row
+- clears the Active Task section in `index.md` and adds a History row with
+  Status `done`, or `partial` if you confirmed archiving with an unapplied
+  follow-up
 
 For the dark-mode example, a candidate might read: "Key Conventions:
 dark-mode state persists via SharedPreferences, not a global provider" —
@@ -454,7 +483,7 @@ via the environment variable):
 | `.task/context.md` | ≤ 12,000 chars |
 | `.task/implementation.md` | ≤ 6,000 chars |
 | each `## Follow-up N — Applied` section | ≤ 1,400 chars |
-| `.task/PROJECT.md` (typical) | ~5,000 chars |
+| `.task/PROJECT.md` (typical, HTML comments stripped) | ~3,000 chars |
 | planning prompt (`bin/plan-prompt.md`) | ~3,500 chars |
 | **Total per web message** | **25,000 chars** |
 
@@ -482,6 +511,7 @@ remotely without clipboard access.
 │   ├── save-followup.sh
 │   ├── save-plan.sh
 │   └── lib/
+│       ├── common.sh
 │       ├── copy-for-web-design.sh
 │       ├── copy-for-web-handoff.sh
 │       ├── copy-for-web-lean.sh
@@ -496,6 +526,8 @@ remotely without clipboard access.
 │   │   ├── execute-agent.md
 │   │   └── fix-agent.md
 │   ├── instructions/
+│   │   ├── _language.md
+│   │   ├── _verify.md
 │   │   ├── context.md
 │   │   ├── execute.md
 │   │   └── fix.md

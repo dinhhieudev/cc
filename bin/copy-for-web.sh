@@ -70,8 +70,7 @@ counts, then attached in full, then PROJECT; OVERVIEW SUMMARY then
 CURRENT PLAN STEPS in handoff mode) and the clipboard message
 references them by name — attach those files in the web chat yourself.
 .task/web/ is cleared and rebuilt on every run. --split forces the
-above pairs to attachments regardless of size. Warns if the message
-still exceeds 85% of the limit.
+above pairs to attachments regardless of size.
 
 Every mode also writes the exact clipboard payload to
 .task/web/_message.md, for pasting by hand when driving the session
@@ -162,13 +161,6 @@ case "$MODE" in
   lean) run_lean_mode ;;
   handoff) run_handoff_mode ;;
 esac
-
-WARN_AT=$((LIMIT * 85 / 100))
-if [[ "$TOTAL_CHARS" -gt "$WARN_AT" ]]; then
-  echo "Warning: payload is $TOTAL_CHARS chars, over 85% of the $LIMIT char limit." >&2
-  echo "Section breakdown:" >&2
-  print_breakdown
-fi
 
 printf '%s\n' "$PAYLOAD" > "$WEB_DIR/_message.md"
 echo "Message also written to .task/web/_message.md" >&2
