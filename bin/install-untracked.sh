@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/install-untracked-lib.sh"
+source "$SCRIPT_DIR/lib/install-untracked-ignore.sh"
 
 if [[ $# -eq 0 ]]; then
   usage
@@ -43,7 +44,7 @@ fi
 TARGET="$(cd "$TARGET_ARG" && pwd)"
 
 if ! git -C "$TARGET" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "Error: '$TARGET' is not a git repository. This script only makes sense for a git-tracked project — it relies on .gitignore to keep the installed files out of git status." >&2
+  echo "Error: '$TARGET' is not a git repository. This script only makes sense for a git-tracked project — it relies on .git/info/exclude to keep the installed files out of git status." >&2
   exit 1
 fi
 
@@ -143,35 +144,10 @@ else
   SKIPPED+=("CLAUDE.local.md (already has the claude++ workflow block)")
 fi
 
-# --- .gitignore ----------------------------------------------------------
-GITIGNORE="$TARGET/.gitignore"
-GITIGNORE_MARKER_BEGIN="# claude++ workflow: begin"
-GITIGNORE_MARKER_END="# claude++ workflow: end"
-GITIGNORE_BODY="CLAUDE.local.md
-.claude/agents/context-agent.md
-.claude/agents/execute-agent.md
-.claude/agents/fix-agent.md
-.claude/instructions/
-.claude/skills/save/
-.task/"
-for f in "${BIN_FILES[@]}"; do
-  GITIGNORE_BODY="$GITIGNORE_BODY
-bin/$f"
-done
-
-if [[ "$UPGRADE" -eq 1 ]]; then
-  if [[ -f "$GITIGNORE" ]] && grep -qF "$GITIGNORE_MARKER_BEGIN" "$GITIGNORE"; then
-    replace_marker_block "$GITIGNORE" "$GITIGNORE_MARKER_BEGIN" "$GITIGNORE_MARKER_END" "$GITIGNORE_BODY"
-    COPIED+=(".gitignore (claude++ workflow block refreshed)")
-  else
-    write_marker_block "$GITIGNORE" "$GITIGNORE_MARKER_BEGIN" "$GITIGNORE_MARKER_END" "$GITIGNORE_BODY"
-    COPIED+=(".gitignore (claude++ workflow block)")
-  fi
-elif write_marker_block "$GITIGNORE" "$GITIGNORE_MARKER_BEGIN" "$GITIGNORE_MARKER_END" "$GITIGNORE_BODY"; then
-  COPIED+=(".gitignore (claude++ workflow block)")
-else
-  SKIPPED+=(".gitignore (already has the claude++ workflow block)")
-fi
+# --- local git exclude ----------------------------------------------------
+resolve_exclude_file
+build_ignore_body
+install_ignore_block
 
 # --- Summary ---------------------------------------------------------------
 SUMMARY_HEADING="Copied:"

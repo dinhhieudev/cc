@@ -45,8 +45,8 @@ bash bin/install-untracked.sh [--lang en|vi] [--upgrade] /path/to/target
 ```
 
 `<target-project-path>` must already exist and be a git repository — the
-script relies on `.gitignore` to keep everything it installs out of the
-target's git status. It copies:
+script relies on the target's local-only `.git/info/exclude` to keep
+everything it installs out of the target's git status. It copies:
 
 - `.claude/agents/{context-agent.md,execute-agent.md,fix-agent.md}`
 - `.claude/instructions/{context.md,execute.md,fix.md}`
@@ -58,8 +58,13 @@ target's git status. It copies:
 
 It also merges this repo's `CLAUDE.md` (Agent Routing table + hard rules)
 into the target's `CLAUDE.local.md` between marker comments, and adds a
-matching block to the target's `.gitignore` so none of the above pollutes
-the target's shared git history.
+matching block to the target's `.git/info/exclude` — never the tracked
+`.gitignore` — so none of the above pollutes the target's shared git
+history. `.git/info/exclude` is per-clone (not versioned), so re-run the
+installer after cloning the target on another machine. If an earlier
+install left a claude++ block in the target's `.gitignore`, every run
+removes it (rest of the file untouched) and tells you to commit that
+removal once if the block was ever committed.
 
 Flags:
 - `--lang en|vi` (also accepts `--lang=en`) — on a fresh install, sets
@@ -70,9 +75,9 @@ Flags:
   template: overwrites the agent/instruction/skill/bin files, removes
   retired paths from older installs (`bin/diff-for-web.sh`,
   `.claude/skills/overview/`) if present, and refreshes the
-  `CLAUDE.local.md`/`.gitignore` marker blocks. Requires a previous install
-  (checks for the marker in `CLAUDE.local.md`) and never touches `.task/`
-  except syncing the `Language:` line.
+  `CLAUDE.local.md`/`.git/info/exclude` marker blocks. Requires a
+  previous install (checks for the marker in `CLAUDE.local.md`) and
+  never touches `.task/` except syncing the `Language:` line.
 
 If `.claude/agents/*` or `.claude/skills/save/` already exist in the target
 with different content, the script aborts before copying anything unless

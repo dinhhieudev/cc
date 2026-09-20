@@ -4,15 +4,16 @@ Usage: install-untracked.sh [--lang en|vi] [--upgrade] <target-project-path>
 
 Installs the claude++ workflow (agents, instructions, skills, .task/,
 bin/ helper scripts) into <target-project-path>, and marks every
-installed path as gitignored in the target so none of it pollutes the
-target project's shared git history.
+installed path as ignored in the target's local-only .git/info/exclude
+so none of it pollutes the target's shared git history (a legacy
+claude++ block left in the target's .gitignore is removed).
 
 Also merges this repo's CLAUDE.md (Agent Routing table + hard rules)
 into <target-project-path>/CLAUDE.local.md, between marker comments.
 
 <target-project-path> must already exist and be a git repository — this
 script only makes sense for a git-tracked project, since it relies on
-.gitignore to keep the installed files out of git status.
+.git/info/exclude to keep the installed files out of git status.
 
 If .claude/agents/{context,execute,fix}-agent.md or
 .claude/skills/save/ already exist in the target with different
@@ -31,7 +32,7 @@ Options:
                    instruction, skill, and bin/ (incl. bin/lib/) helper
                    files, removes the retired bin/diff-for-web.sh and
                    .claude/skills/overview/ if present, and refreshes
-                   the CLAUDE.local.md and .gitignore workflow blocks.
+                   the CLAUDE.local.md and .git/info/exclude workflow blocks.
                    Requires a previous install — refuses unless the
                    target's CLAUDE.local.md already has the claude++
                    workflow marker. Never touches .task/, except adding

@@ -44,8 +44,8 @@ bash bin/install-untracked.sh [--lang en|vi] [--upgrade] /path/to/target
 ```
 
 `<target-project-path>` phải đã tồn tại và là một git repository — script
-dựa vào `.gitignore` để giữ mọi thứ nó cài đặt ngoài git status của dự án
-đích. Nó sao chép:
+dựa vào `.git/info/exclude` (chỉ tồn tại cục bộ) của dự án đích để giữ mọi
+thứ nó cài đặt ngoài git status của dự án đích. Nó sao chép:
 
 - `.claude/agents/{context-agent.md,execute-agent.md,fix-agent.md}`
 - `.claude/instructions/{context.md,execute.md,fix.md}`
@@ -57,8 +57,14 @@ dựa vào `.gitignore` để giữ mọi thứ nó cài đặt ngoài git statu
 
 Nó cũng gộp `CLAUDE.md` của repo này (bảng Agent Routing + các hard rules)
 vào `CLAUDE.local.md` của dự án đích, giữa các marker comment, và thêm một
-block tương ứng vào `.gitignore` của dự án đích để không có gì ở trên làm
-bẩn lịch sử git chung.
+block tương ứng vào `.git/info/exclude` của dự án đích — không bao giờ vào
+`.gitignore` (file có track git) — để không có gì ở trên làm bẩn lịch sử
+git chung. `.git/info/exclude` chỉ tồn tại cục bộ trên máy (không được
+đồng bộ), nên hãy chạy lại trình cài đặt sau khi clone dự án đích sang máy
+khác. Nếu bản cài trước để lại một block claude++ trong `.gitignore` của
+dự án đích, mỗi lần chạy sẽ xoá block đó (phần còn lại của file giữ
+nguyên) và nhắc bạn commit việc xoá này một lần nếu block đó từng được
+commit.
 
 Các cờ:
 - `--lang en|vi` (cũng nhận `--lang=en`) — với bản cài mới, đặt `Language:`
@@ -69,9 +75,9 @@ Các cờ:
   hiện tại: ghi đè các file agent/instructions/skill/bin, xoá các đường dẫn
   đã bị loại bỏ ở bản cài cũ (`bin/diff-for-web.sh`,
   `.claude/skills/overview/`) nếu còn tồn tại, và làm mới các marker block
-  trong `CLAUDE.local.md`/`.gitignore`. Yêu cầu đã có bản cài trước đó (kiểm
-  tra marker trong `CLAUDE.local.md`) và không bao giờ đụng vào `.task/`
-  ngoại trừ đồng bộ dòng `Language:`.
+  trong `CLAUDE.local.md`/`.git/info/exclude`. Yêu cầu đã có bản cài trước
+  đó (kiểm tra marker trong `CLAUDE.local.md`) và không bao giờ đụng vào
+  `.task/` ngoại trừ đồng bộ dòng `Language:`.
 
 Nếu `.claude/agents/*` hoặc `.claude/skills/save/` đã tồn tại ở dự án đích
 với nội dung khác, script sẽ dừng trước khi copy bất cứ gì, trừ khi có
