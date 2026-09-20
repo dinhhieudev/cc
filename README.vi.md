@@ -142,6 +142,49 @@ Khi `Language: vi`, `bin/copy-for-web.sh` nối thêm một dòng vào prompt we
 bằng tiếng Việt: "Write your response in Vietnamese (keep the ## headings
 and file paths in English)."
 
+### Human-runs profile (không tự động build/run)
+
+Khi con người tự lo build/run/kiểm thử thủ công — các agent Claude không
+bao giờ chạy build hay khởi chạy app; con người tự build, chạy, kiểm thử
+thủ công, rồi báo lại vấn đề — hãy đặt `Build policy: never`, để trống
+`## Device Smoke Test Command`, và vẫn điền `## Codegen / Setup Command`
+cùng `## Type Check Command`. Codegen vẫn chạy (`build_runner`,
+`pod install`, `gen-l10n`) vì type check phụ thuộc vào file được sinh ra
+— bước này không thể bỏ qua.
+
+| Project | Type Check Command | Test Command | Build policy |
+|---|---|---|---|
+| Flutter | `dart analyze` | `flutter test` | `never` |
+| Android native | `./gradlew compileDebugKotlin` | `./gradlew testDebugUnitTest` | `never` |
+| Android KMP | `./gradlew compileKotlinJvm` | `./gradlew jvmTest` | `never` |
+| iOS native | `xcodebuild build -scheme <Scheme> -destination 'generic/platform=iOS' -quiet` | `swift test` for SPM logic packages, else empty | `never` |
+
+Chọn lệnh test KHÔNG boot simulator hay emulator. Với KMP, tránh
+`./gradlew allTests` — nó kéo theo cả target iOS và boot simulator.
+
+- `generic/platform=iOS` build theo kiến trúc thiết bị thật và không bao
+  giờ boot simulator. Đây là một lần compile đầy đủ, nên lần chạy đầu
+  (cold) mất vài phút, nhưng các lần chạy sau (warm, incremental) chỉ
+  khoảng 20-60s nhờ derived-data cache.
+- Chỉ `xcodebuild test` nhắm vào một test target riêng cho iOS mới cần
+  boot simulator. Logic nằm trong một SwiftPM package không phụ thuộc
+  platform có thể test bằng `swift test` ngay trên máy macOS — vài giây,
+  không cần simulator.
+
+iOS native không có type check *rẻ* — cái rẻ nhất đúng nghĩa là một
+incremental build đầy đủ, khác với `dart analyze` hay
+`compileDebugKotlin`. Nếu chấp nhận được chi phí đó, hãy đặt build
+`generic/platform=iOS` vào ô Type Check và iOS native được phủ như ba
+project còn lại. Nếu không, để trống Type Check và chấp nhận không có
+xác minh tự động nào: execute-agent khi đó phải nêu rõ trong
+`.task/implementation.md` rằng không có lệnh verify nào được cấu hình,
+thay vì âm thầm bỏ qua, và lớp bảo vệ tự động còn lại duy nhất là quy tắc
+escalation (một dependency, permission, entitlement, hoặc thay đổi
+Info.plist/AndroidManifest mới không có trong plan sẽ chặn agent lại).
+Lưu ý thêm: dùng chung DerivedData mặc định với một Xcode đang mở có thể
+gây tranh chấp khoá (lock contention) — truyền `-derivedDataPath` trỏ tới
+một thư mục riêng nếu gặp vấn đề này.
+
 ## Bước 1 — Claude Code: task overview + context
 
 Gõ `task: <yêu cầu>` (bí danh: `skill overview + context: <yêu cầu>`, hoặc
@@ -307,7 +350,7 @@ build (bị gán bởi `Build policy:`), và test/device smoke — mỗi platfor
 một lệnh khi có cấu hình, iOS trước — tối đa 3 lần thử, và viết
 `.task/implementation.md` (`## Changes`, `## Deviations from Plan`,
 `## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`), giới
-hạn ≤ 5.000 ký tự. Với task UI, Manual Test Checklist yêu cầu bạn lưu ảnh
+hạn ≤ 6.000 ký tự. Với task UI, Manual Test Checklist yêu cầu bạn lưu ảnh
 kết quả vào `.task/design/result/`. Không commit — workflow không đụng
 vào git.
 
@@ -326,6 +369,12 @@ dispatch **fix-agent**.
 Với ví dụ dark-mode, giả sử test phát hiện lỗi: `fix: toggling twice
 re-triggers the API call`. fix-agent sửa lỗi rồi nối `## Follow-up 1 —
 Applied` vào `.task/followups.md`.
+
+Nếu kiểm thử thủ công phát hiện crash, tự bạn lấy log —
+`xcrun simctl spawn booted log show --last 2m` cho iOS, `adb logcat -d`
+cho Android — rồi hoặc dán khoảng 30 frame đầu vào yêu cầu `fix: ...`
+(đường trực tiếp), hoặc ghi ra file và chạy `bin/attach.sh <file>` để
+gửi kèm vòng qua web bên dưới.
 
 **Cần suy nghĩ thật sự** — chạy `bin/copy-for-web.sh result` trong *cùng*
 web chat. Nó dựng payload từ `.task/implementation.md` và
@@ -350,7 +399,7 @@ trước chưa được đánh dấu Applied. Rồi bảo Claude `chạy fix` (h
 
 fix-agent chỉ đọc mục `## Follow-up N` hiện tại (không đọc các vòng trước),
 áp dụng thay đổi an toàn nhỏ nhất, chạy lại Verify Command (tối đa 3 lần
-thử), và nối `## Follow-up N — Applied` — giới hạn ≤ 1.200 ký tự mỗi mục.
+thử), và nối `## Follow-up N — Applied` — giới hạn ≤ 1.400 ký tự mỗi mục.
 
 **Chat mới** — nếu web chat *cùng* cuộc hội thoại ở trên đã quá dài hoặc mất
 ngữ cảnh, chạy `bin/copy-for-web.sh handoff` thay vì `result` rồi dán vào
@@ -402,8 +451,8 @@ biến môi trường):
 |---|---|
 | `.task/overview.md` | ≤ 4.000 ký tự |
 | `.task/context.md` | ≤ 12.000 ký tự |
-| `.task/implementation.md` | ≤ 5.000 ký tự |
-| mỗi mục `## Follow-up N — Applied` | ≤ 1.200 ký tự |
+| `.task/implementation.md` | ≤ 6.000 ký tự |
+| mỗi mục `## Follow-up N — Applied` | ≤ 1.400 ký tự |
 | `.task/PROJECT.md` (điển hình) | ~5.000 ký tự |
 | planning prompt (`bin/plan-prompt.md`) | ~3.500 ký tự |
 | **Tổng mỗi tin nhắn web** | **25.000 ký tự** |

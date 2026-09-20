@@ -142,6 +142,49 @@ prompt (both planning and result-review payloads) asking the AI web to
 answer in Vietnamese: "Write your response in Vietnamese (keep the ##
 headings and file paths in English)."
 
+### Human-runs profile (no automated build/run)
+
+When the human owns build/run/manual test — Claude agents never run
+builds or launch the app; the human builds, runs, and manually tests,
+then reports problems — configure `Build policy: never`, leave
+`## Device Smoke Test Command` empty, and keep `## Codegen / Setup
+Command` and `## Type Check Command` filled in. Codegen still runs
+(`build_runner`, `pod install`, `gen-l10n`) because the type check
+depends on generated files — it is not skippable.
+
+| Project | Type Check Command | Test Command | Build policy |
+|---|---|---|---|
+| Flutter | `dart analyze` | `flutter test` | `never` |
+| Android native | `./gradlew compileDebugKotlin` | `./gradlew testDebugUnitTest` | `never` |
+| Android KMP | `./gradlew compileKotlinJvm` | `./gradlew jvmTest` | `never` |
+| iOS native | `xcodebuild build -scheme <Scheme> -destination 'generic/platform=iOS' -quiet` | `swift test` for SPM logic packages, else empty | `never` |
+
+Pick test commands that do NOT boot a simulator or emulator. For KMP,
+avoid `./gradlew allTests` — it pulls in iOS targets and boots a
+simulator.
+
+- `generic/platform=iOS` builds for device architecture and never boots a
+  simulator. It is a full compile, so the first cold run takes minutes,
+  but incremental warm runs are roughly 20-60s because of the
+  derived-data cache.
+- Only `xcodebuild test` against an iOS-only test target needs a booted
+  simulator. Logic that lives in a platform-agnostic SwiftPM package can
+  be tested with `swift test` on the macOS host instead — seconds, no
+  simulator.
+
+iOS native has no *cheap* type check — the cheapest correct one is a full
+incremental build, unlike `dart analyze` or `compileDebugKotlin`. If that
+cost is acceptable, put the `generic/platform=iOS` build in the Type
+Check slot and iOS native is covered like the other three. If it is not,
+leave Type Check empty and accept zero automated verification:
+execute-agent must then state explicitly in `.task/implementation.md`
+that no verify command is configured rather than silently skipping, and
+the only remaining automated guard is the escalation rule (a new
+dependency, permission, entitlement, or Info.plist/AndroidManifest change
+not listed in the plan stops the agent). Also note: sharing the default
+DerivedData with an open Xcode can cause lock contention — pass
+`-derivedDataPath` to a separate directory if that becomes a problem.
+
 ## Step 1 — Claude Code: task overview + context
 
 Say `task: <request>` (alias: `skill overview + context: <request>`, or any
@@ -308,7 +351,7 @@ in order, then runs codegen/setup (when relevant), type check, build
 platform when configured, iOS first — up to 3 attempts, and writes
 `.task/implementation.md` (`## Changes`, `## Deviations from Plan`,
 `## Verify`, `## Manual Test Checklist`, `## PROJECT.md Candidates`), budget
-≤ 5,000 characters. For UI tasks, the Manual Test Checklist asks you to
+≤ 6,000 characters. For UI tasks, the Manual Test Checklist asks you to
 save result screenshots into `.task/design/result/`. No commit — the
 workflow doesn't touch git.
 
@@ -327,6 +370,12 @@ dispatches **fix-agent**.
 For the dark-mode example, say testing turns up a bug: `fix: toggling
 twice re-triggers the API call`. fix-agent patches it and appends
 `## Follow-up 1 — Applied` to `.task/followups.md`.
+
+If manual testing produced a crash, capture the log yourself —
+`xcrun simctl spawn booted log show --last 2m` for iOS, `adb logcat -d`
+for Android — then either paste the top ~30 frames into the `fix: ...`
+request (direct route), or write it to a file and run
+`bin/attach.sh <file>` to send it along with the web round-trip below.
 
 **Needs real thinking** — run `bin/copy-for-web.sh result` in the *same* web
 chat. It builds a payload from `.task/implementation.md` and
@@ -351,7 +400,7 @@ reading `followups.md` itself.
 
 fix-agent reads only the current `## Follow-up N` section (not earlier
 rounds), applies the smallest safe change, re-runs the Verify Command (up to
-3 attempts), and appends `## Follow-up N — Applied` — budget ≤ 1,200
+3 attempts), and appends `## Follow-up N — Applied` — budget ≤ 1,400
 characters per section.
 
 **Fresh chat** — if the *same* web chat above has gotten too long or lost
@@ -403,8 +452,8 @@ via the environment variable):
 |---|---|
 | `.task/overview.md` | ≤ 4,000 chars |
 | `.task/context.md` | ≤ 12,000 chars |
-| `.task/implementation.md` | ≤ 5,000 chars |
-| each `## Follow-up N — Applied` section | ≤ 1,200 chars |
+| `.task/implementation.md` | ≤ 6,000 chars |
+| each `## Follow-up N — Applied` section | ≤ 1,400 chars |
 | `.task/PROJECT.md` (typical) | ~5,000 chars |
 | planning prompt (`bin/plan-prompt.md`) | ~3,500 chars |
 | **Total per web message** | **25,000 chars** |

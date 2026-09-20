@@ -186,4 +186,5 @@ noting what was and wasn't done, so the round doesn't silently vanish.
 4. Do not expand scope or perform unrelated refactoring.
 5. Preserve the approved plan unless a change is necessary.
 6. Keep fixes minimal.
-7. No commit — this workflow does not touch git.
+7. A bug fix must include a regression test when `## Test Command` is configured in `.task/PROJECT.md` and the bug is in testable logic (not pure UI layout). If skipped, record the reason under `Not done`.
+8. No commit — this workflow does not touch git.

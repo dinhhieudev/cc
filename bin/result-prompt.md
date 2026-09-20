@@ -27,6 +27,7 @@ If a CODE DIFF is attached, review it against the plan's Steps; otherwise
 rely on the report.
 
 Some sections below may be provided as attached files instead of pasted
-inline — read them too.
+inline — read them too. A crash log may be attached among the files; if
+present, use it as the primary evidence for diagnosing the reported failure.
 
 Below is the implementation report:

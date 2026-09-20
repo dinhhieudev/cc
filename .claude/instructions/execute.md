@@ -206,7 +206,7 @@ One line per platform when a slot has per-platform commands, e.g.
 `- Build (ios): {command} → pass`, `- Build (android): skipped (ios-priority)`.
 
 ## Manual Test Checklist
-- [ ] ...
+- [ ] <action> → <expected result>
 
 ## PROJECT.md Candidates
 - <PROJECT.md section name>: <the fact>
@@ -214,7 +214,11 @@ One line per platform when a slot has per-platform commands, e.g.
 
 `## Deviations from Plan`: if mock/dummy/placeholder data or a stub was used because a real data source (API, backend, service) wasn't available or in scope, note it explicitly here — what's mocked, where (file/function), and what a future task needs to do to replace it with the real source; this is discoverable later via `## Related Task` lookups on the same Screen tag.
 
-`## Manual Test Checklist`: generate a checklist appropriate to what was changed:
+`## Manual Test Checklist`: generate a checklist appropriate to what was changed. Under a human-runs setup this checklist is the primary verification artifact, and a 40-item checklist does not get run, so:
+- Each item uses the format `- [ ] <concrete action> → <expected result>` — never a vague bullet.
+- At most 12 items, ordered by risk: happy path first, then state coverage (loading / empty / error), then edge cases (dark mode, Dynamic Type, rotation), then platform-specific items last.
+- Mark items that require a physical device with `(real device)`.
+- When `## Platform` in `.task/PROJECT.md` targets both iOS and Android, group the items under a per-platform heading.
 - **UI changes**: first item asks the human to save result screenshots into `.task/design/result/` (iOS: `xcrun simctl io booted screenshot <name>.png`; Android: `adb exec-out screencap -p > <name>.png`) so `bin/copy-for-web.sh result` forwards them for review. Then include checks for light/dark mode, smallest and largest Dynamic Type, portrait/landscape (unless rotation-locked), loading/empty/error states, accessibility labels, and localization when applicable. If `## Platform` targets both iOS and Android, include a check for each platform.
 - **Network-dependent features**: include offline and slow-network checks.
 - **Persisted state**: include a fresh-launch/restart check.
@@ -223,7 +227,7 @@ One line per platform when a slot has per-platform commands, e.g.
 - **Lifecycle/navigation**: when relevant, include background/foreground, cold start, back/dismiss, deep link, and state restoration checks.
 - **Release-sensitive changes**: include the affected environment/flavor and upgrade-from-previous-version check.
 
-`## PROJECT.md Candidates`: at most 5 bullets, each a single line, each a durable project-level fact worth adding to `.task/PROJECT.md` that is NOT already stated there (a convention, architectural constraint, important file, or gotcha) — format `- <PROJECT.md section name>: <the fact>`. Write `None` when nothing qualifies — that is the normal case for a routine task; task-specific detail, restatements of PROJECT.md, and anything already in the code's own docs don't qualify. This file is pasted into the web chat later (alongside `.task/followups.md`, in one message limited to 25,000 characters total) — keep it terse. **Budget: `.task/implementation.md` must be ≤ 5,000 characters**, this section included (check with `wc -m .task/implementation.md`; compress if over).
+`## PROJECT.md Candidates`: at most 5 bullets, each a single line, each a durable project-level fact worth adding to `.task/PROJECT.md` that is NOT already stated there (a convention, architectural constraint, important file, or gotcha) — format `- <PROJECT.md section name>: <the fact>`. Write `None` when nothing qualifies — that is the normal case for a routine task; task-specific detail, restatements of PROJECT.md, and anything already in the code's own docs don't qualify. This file is pasted into the web chat later (alongside `.task/followups.md`, in one message limited to 25,000 characters total) — keep it terse. **Budget: `.task/implementation.md` must be ≤ 6,000 characters**, this section included (check with `wc -m .task/implementation.md`; compress if over).
 
 ### 6. Final Report
 

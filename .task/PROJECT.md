@@ -179,7 +179,10 @@ Build policy: native-only | always | never
 - always: run the build on every attempt.
 - never: never run the build; record "skipped (policy)".
 Native iOS projects have no cheap type check — consider policy "always", or
-put a simulator build in the Type Check Command slot instead. -->
+put an `xcodebuild build -destination 'generic/platform=iOS'` build in the
+Type Check Command slot instead (device-arch build, no simulator booted).
+A human-runs setup (human does build/run/manual test) uses "never" plus an
+empty Device Smoke Test Command — see the README's "Human-runs profile" section. -->
 <!-- May hold one line per platform instead of a single command:
 ios: <command>
 android: <command>
